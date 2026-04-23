@@ -1,0 +1,232 @@
+[
+  {
+    "id": "mon-data-warehouse-cr",
+    "dayIndex": 0,
+    "title": "CR-Entrepôts de Données",
+    "room": "A-KANOUN",
+    "teacher": "Mr. Nefaa Haffar",
+    "colorHex": "#2563EB",
+    "startTime": "08:30",
+    "endTime": "10:00"
+  },
+  {
+    "id": "mon-ai-tp",
+    "dayIndex": 0,
+    "title": "TP-Programmation IA",
+    "room": "A-07",
+    "teacher": "Mrs. Azza Chebil",
+    "colorHex": "#16A34A",
+    "startTime": "10:15",
+    "endTime": "11:45"
+  },
+  {
+    "id": "mon-bi-cr",
+    "dayIndex": 0,
+    "title": "CR-Business Intelligence and Data Analytics",
+    "room": "A-KANOUN",
+    "teacher": "Mrs. Raghda Jouirou",
+    "colorHex": "#F97316",
+    "startTime": "13:00",
+    "endTime": "14:30"
+  },
+  {
+    "id": "mon-istqb-tp",
+    "dayIndex": 0,
+    "title": "TP-1/15-Tests de logiciels (certification ISTQB)",
+    "room": "A-31",
+    "teacher": "Mrs. Ichrak Mehrez",
+    "colorHex": "#7C3AED",
+    "startTime": "14:45",
+    "endTime": "16:15"
+  },
+  {
+    "id": "mon-indexation-tp",
+    "dayIndex": 0,
+    "title": "TP-1/15-Techniques d'indexation et de recherche multimédia",
+    "room": "A-06",
+    "teacher": "Mr. Mohamed Amine Ben Charrada",
+    "colorHex": "#DB2777",
+    "startTime": "16:30",
+    "endTime": "18:00"
+  },
+  {
+    "id": "tue-bi-tp",
+    "dayIndex": 1,
+    "title": "TP-1/15-Business Intelligence and Data Analytics",
+    "room": "A-01",
+    "teacher": "Mrs. Raghda Jouirou",
+    "colorHex": "#9333EA",
+    "startTime": "08:30",
+    "endTime": "10:00"
+  },
+  {
+    "id": "tue-dbt-tp",
+    "dayIndex": 1,
+    "title": "TP-1/15-Digital Business Transformation",
+    "room": "A-12",
+    "teacher": "Mrs. Eslem Romdhane",
+    "colorHex": "#4F46E5",
+    "startTime": "08:30",
+    "endTime": "10:00"
+  },
+  {
+    "id": "tue-compilation-tp",
+    "dayIndex": 1,
+    "title": "TP-Techniques de compilation",
+    "room": "A-02",
+    "teacher": "Mrs. Sameh Ghallebi",
+    "colorHex": "#DC2626",
+    "startTime": "10:15",
+    "endTime": "11:45"
+  },
+  {
+    "id": "tue-database-admin-tp",
+    "dayIndex": 1,
+    "title": "TP-Administration des bases de données",
+    "room": "A-03",
+    "teacher": "Mrs. Maleke Chatti",
+    "colorHex": "#22C55E",
+    "startTime": "13:00",
+    "endTime": "14:30"
+  },
+  {
+    "id": "tue-web-tp",
+    "dayIndex": 1,
+    "title": "TP-Technologies et programmation web",
+    "room": "A-07",
+    "teacher": "Mrs. Senda Laataoui",
+    "colorHex": "#0284C7",
+    "startTime": "15:00",
+    "endTime": "17:00"
+  },
+  {
+    "id": "tue-ai-cr",
+    "dayIndex": 1,
+    "title": "CR-Programmation IA",
+    "room": "A-KANOUN",
+    "teacher": "Mr. Nefaa Haffar",
+    "colorHex": "#0EA5E9",
+    "startTime": "16:30",
+    "endTime": "18:00"
+  },
+  {
+    "id": "wed-web-tp",
+    "dayIndex": 2,
+    "title": "TP-Technologies et programmation web",
+    "room": "A-06",
+    "teacher": "Mrs. Senda Laataoui",
+    "colorHex": "#0D9488",
+    "startTime": "08:30",
+    "endTime": "10:00"
+  },
+  {
+    "id": "wed-compilation-cr",
+    "dayIndex": 2,
+    "title": "CR-Techniques de compilation",
+    "room": "A-KANOUN",
+    "teacher": "Mrs. Aida Lahouij",
+    "colorHex": "#0891B2",
+    "startTime": "10:15",
+    "endTime": "11:45"
+  },
+  {
+    "id": "wed-english-td",
+    "dayIndex": 2,
+    "title": "TD-Anglais",
+    "room": "C-24",
+    "teacher": "Mrs. Lilia Zouari",
+    "colorHex": "#EC4899",
+    "startTime": "13:00",
+    "endTime": "14:30"
+  },
+  {
+    "id": "wed-indexation-cr",
+    "dayIndex": 2,
+    "title": "CR-Techniques d'indexation et de recherche multimédia",
+    "room": "A-KANOUN",
+    "teacher": "Mrs. Imen Chabbi",
+    "colorHex": "#65A30D",
+    "startTime": "14:45",
+    "endTime": "16:15"
+  },
+  {
+    "id": "thu-compilation-td",
+    "dayIndex": 3,
+    "title": "TD-1/15-Techniques de compilation",
+    "room": "C-23",
+    "teacher": "Mrs. Sameh Ghallebi",
+    "colorHex": "#6D28D9",
+    "startTime": "08:30",
+    "endTime": "10:00"
+  },
+  {
+    "id": "thu-ai-tp",
+    "dayIndex": 3,
+    "title": "TP-Programmation IA",
+    "room": "A-05",
+    "teacher": "Mrs. Azza Chebil",
+    "colorHex": "#84CC16",
+    "startTime": "13:00",
+    "endTime": "14:30"
+  },
+  {
+    "id": "thu-web-cr",
+    "dayIndex": 3,
+    "title": "CR-Technologies et programmation web",
+    "room": "A-KANOUN",
+    "teacher": "Mrs. Dorra Dhaou",
+    "colorHex": "#F59E0B",
+    "startTime": "14:45",
+    "endTime": "16:15"
+  },
+  {
+    "id": "thu-database-admin-cr",
+    "dayIndex": 3,
+    "title": "CR-1/15-Administration des bases de données",
+    "room": "A-KANOUN",
+    "teacher": "Mrs. Sana Hamdi",
+    "colorHex": "#2563EB",
+    "startTime": "16:30",
+    "endTime": "18:00"
+  },
+  {
+    "id": "fri-dbt-cr",
+    "dayIndex": 4,
+    "title": "CR-Digital Business Transformation",
+    "room": "A-KANOUN",
+    "teacher": "Mr. Ahmed Wajdi Abdallah",
+    "colorHex": "#475569",
+    "startTime": "08:30",
+    "endTime": "10:00"
+  },
+  {
+    "id": "fri-law-cr",
+    "dayIndex": 4,
+    "title": "CR-Droit d'informatique, protection des données et éthique",
+    "room": "A-KANOUN",
+    "teacher": "Mrs. Wejden Allali",
+    "colorHex": "#EA580C",
+    "startTime": "10:15",
+    "endTime": "11:45"
+  },
+  {
+    "id": "fri-istqb-cr",
+    "dayIndex": 4,
+    "title": "CR-Tests de logiciels (certification ISTQB)",
+    "room": "A-KANOUN",
+    "teacher": "Mrs. Sarra Mejri",
+    "colorHex": "#A16207",
+    "startTime": "14:00",
+    "endTime": "15:30"
+  },
+  {
+    "id": "sat-project-tp",
+    "dayIndex": 5,
+    "title": "TP-Projet fédéré (méthode Agile) - non-présentiel",
+    "room": "Library",
+    "teacher": "Self Study",
+    "colorHex": "#64748B",
+    "startTime": "10:15",
+    "endTime": "11:45"
+  }
+]

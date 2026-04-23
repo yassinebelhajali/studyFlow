@@ -1,74 +1,110 @@
 import 'package:flutter/material.dart';
-import 'home.dart';
-import 'cours_page.dart';
-import 'tasks_page.dart';
-import 'profile.dart';
-import 'emploi.dart';
-import 'login.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
-  runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: LoginPage(),
-  ));
-}
+import 'core/notifications/local_notification_service.dart';
+import 'core/notifications/notification_permission_handler.dart';
+import 'core/notifications/study_notification_scheduler.dart';
+import 'core/app/study_flow_app.dart';
+import 'data/ai/ai_backend_client.dart';
+import 'data/ai/ai_memory_store.dart';
+import 'data/ai/http_ai_backend_client.dart';
+import 'data/ai/mock_ai_backend_client.dart';
+import 'data/auth/api_auth_repository.dart';
+import 'data/auth/local_auth_data_source.dart';
+import 'data/auth/local_auth_repository.dart';
+import 'data/notifications/local_notification_settings_store.dart';
+import 'data/profile/local_profile_repository.dart';
+import 'data/schedule/api_schedule_repository.dart';
+import 'data/tasks/api_task_repository.dart';
+import 'data/tasks/local_task_repository.dart';
+import 'domain/repositories/auth_repository.dart';
+import 'data/courses/api_course_repository.dart';
+import 'data/notifications/local_notification_repository.dart';
 
-class MainApp extends StatefulWidget {
-  const MainApp({super.key});
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  @override
-  State<MainApp> createState() => _MainAppState();
-}
+  const scheduleApiBaseUrl = String.fromEnvironment(
+    'STUDYFLOW_API_BASE_URL',
+    defaultValue: 'http://localhost:3000',
+  );
+  const configuredAiBackendBaseUrl = String.fromEnvironment(
+    'STUDYFLOW_AI_BACKEND_URL',
+    defaultValue: '',
+  );
+  const forceMockAiBackend = bool.fromEnvironment(
+    'STUDYFLOW_USE_MOCK_AI',
+    defaultValue: false,
+  );
+  const authApiBaseUrl = String.fromEnvironment(
+    'STUDYFLOW_AUTH_BASE_URL',
+    defaultValue: 'http://localhost:3000',
+  );
+  final preferences = await SharedPreferences.getInstance();
+  final authSessionStore = LocalAuthDataSource(preferences);
+  final localAuthRepository = LocalAuthRepository(authSessionStore);
+  final authRepository = authApiBaseUrl.trim().isEmpty
+      ? localAuthRepository
+      : ApiAuthRepository(
+          baseUrl: authApiBaseUrl,
+          sessionStore: authSessionStore,
+          client: http.Client(),
+          fallback: localAuthRepository,
+        );
+  final scheduleRepository = ApiScheduleRepository.withLocalFallback(
+    baseUrl: scheduleApiBaseUrl,
+  );
+  final aiBackendBaseUrl = configuredAiBackendBaseUrl.trim().isEmpty
+      ? scheduleApiBaseUrl
+      : configuredAiBackendBaseUrl;
+  final useMockAiBackend =
+      forceMockAiBackend || aiBackendBaseUrl.trim().isEmpty;
+  final AiBackendClient aiBackendClient = useMockAiBackend
+      ? const MockAiBackendClient()
+      : HttpAiBackendClient(baseUrl: aiBackendBaseUrl, client: http.Client());
+  final aiMemoryStore = AiMemoryStore(preferences);
+  final taskRepository = authApiBaseUrl.trim().isEmpty
+      ? LocalTaskRepository(preferences)
+      : ApiTaskRepository(
+          preferences,
+          baseUrl: authApiBaseUrl,
+          authSessionStore: authSessionStore,
+        );
+  final courseRepository = ApiCourseRepository(
+    baseUrl: authApiBaseUrl,
+    client: http.Client(),
+  );
+  final notificationRepository = LocalNotificationRepository(preferences);
+  final profileRepository = LocalProfileRepository(preferences);
+  final notificationService = LocalNotificationService();
+  await notificationService.initialize();
+  final notificationSettingsStore = LocalNotificationSettingsStore(preferences);
+  await notificationSettingsStore.load();
+  final notificationScheduler = StudyNotificationScheduler(
+    notificationService: notificationService,
+    permissionHandler: NotificationPermissionHandler(
+      notificationService.plugin,
+    ),
+    settingsStore: notificationSettingsStore,
+  );
+  await notificationScheduler.syncDailyStudyReminder();
+  final sessionController = SessionController(authRepository);
+  await sessionController.restoreSession();
 
-class _MainAppState extends State<MainApp> {
-  int _currentIndex = 0;
-
-  void _navigateFromHome(String page) {
-    const pageIndex = <String, int>{
-      'home': 0,
-      'emploi': 1,
-      'tasks': 2,
-      'cours': 3,
-      'profile': 4,
-    };
-    setState(() {
-      _currentIndex = pageIndex[page] ?? 0;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pages = <Widget>[
-      HomePage(
-        userName: 'Sarah Johnson',
-        onNavigate: _navigateFromHome,
-      ),
-      const StudyFlowApp(),
-      const TasksPage(),
-      CoursPage(),
-      const ProfilePage(),
-    ];
-
-    return Scaffold(
-      body: pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index; 
-          });
-        },
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: true,
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.schedule), label: "Emploi"),
-          BottomNavigationBarItem(icon: Icon(Icons.check_box), label: "Tasks"),
-          BottomNavigationBarItem(icon: Icon(Icons.book), label: "Cours"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
-      ),
-    );
-  }
+  runApp(
+    StudyFlowApp(
+      sessionController: sessionController,
+      scheduleRepository: scheduleRepository,
+      aiBackendClient: aiBackendClient,
+      aiMemoryStore: aiMemoryStore,
+      isMockAiBackend: useMockAiBackend,
+      taskRepository: taskRepository,
+      courseRepository: courseRepository,
+      notificationRepository: notificationRepository,
+      profileRepository: profileRepository,
+      notificationSettingsStore: notificationSettingsStore,
+      notificationScheduler: notificationScheduler,
+    ),
+  );
 }

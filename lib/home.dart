@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
+import 'domain/models/schedule_session.dart';
+import 'domain/repositories/schedule_repository.dart';
+import 'data/tasks/local_task_repository.dart';
 
 // --- CONFIGURATION DES SUGGESTIONS ---
 const List<String> suggestedPrompts = [
@@ -11,12 +15,23 @@ const List<String> suggestedPrompts = [
 class HomePage extends StatefulWidget {
   final String userName; // Requis par ton main
   final ValueChanged<String> onNavigate; // Requis par ton main
+  final VoidCallback onOpenChat;
+  final ValueChanged<String> onStartChatPrompt;
+  final VoidCallback onNotificationTap;
 
   const HomePage({
     super.key,
     required this.userName,
     required this.onNavigate,
+    required this.onOpenChat,
+    required this.onStartChatPrompt,
+    required this.onNotificationTap,
+    required this.scheduleRepository,
+    required this.taskRepository,
   });
+
+  final ScheduleRepository scheduleRepository;
+  final LocalTaskRepository taskRepository;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -25,11 +40,56 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final TextEditingController _controller = TextEditingController();
   String _lastPrompt = 'No message sent yet';
+  ScheduleSession? _nextSession;
+  int _pendingTasksCount = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final now = DateTime.now();
+      final sessions = await widget.scheduleRepository.getWeeklySchedule();
+      final todaySessions = sessions.where((s) => s.dayIndex == now.weekday - 1).toList();
+      todaySessions.sort((a, b) => a.start.compareTo(b.start));
+      
+      final next = todaySessions.firstWhere(
+        (s) => s.startsAfter(now),
+        orElse: () => todaySessions.firstWhere(
+          (s) => s.isCurrentAt(now),
+          orElse: () => sessions.firstWhere(
+            (s) => s.dayIndex > (now.weekday - 1),
+            orElse: () => sessions.isNotEmpty ? sessions.first : todaySessions.first, // Fallback
+          ),
+        ),
+      );
+
+      final tasks = await widget.taskRepository.getTasks();
+      final pendingCount = tasks.where((t) => !t.completed).length;
+
+      if (mounted) {
+        setState(() {
+          _nextSession = next;
+          _pendingTasksCount = pendingCount;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _submitPrompt() {
@@ -39,13 +99,7 @@ class _HomePageState extends State<HomePage> {
       _lastPrompt = text;
     });
     _controller.clear();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF2563EB),
-        behavior: SnackBarBehavior.floating,
-        content: Text('Prompt sent to AI: $text'),
-      ),
-    );
+    widget.onStartChatPrompt(text);
   }
 
   void _fillPrompt(String value) {
@@ -63,7 +117,7 @@ class _HomePageState extends State<HomePage> {
     final isCompact = width < 390;
 
     return Container(
-      color: const Color(0xFFF5F7FB),
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: SafeArea(
         child: ListView(
           padding: EdgeInsets.fromLTRB(
@@ -74,41 +128,59 @@ class _HomePageState extends State<HomePage> {
           ),
           children: [
             // 1. --- HEADER AVEC AVATAR ---
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
+            Container(
+              padding: const EdgeInsets.only(left: 24, right: 24, top: 40, bottom: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                    Theme.of(context).scaffoldBackgroundColor,
+                  ],
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Hello, ${widget.userName},',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF16213D),
-                          letterSpacing: -0.5,
+                        'Welcome Back!',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Let\'s organize your day smarter.',
+                      const SizedBox(height: 4),
+                      Text(
+                        'Yassine Belhaj Ali',
                         style: TextStyle(
-                          color: Color(0xFF50607D),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          letterSpacing: -0.5,
+                          shadows: [
+                            Shadow(
+                              color: Theme.of(context).shadowColor.withValues(alpha: 0.05),
+                              offset: const Offset(0, 2),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                _buildComplexAvatar(),
-              ],
+                  _buildNotificationButton(),
+                ],
+              ),
             ),
 
             const SizedBox(height: 20),
-            const Divider(color: Color(0xFFE2E8F0), height: 1),
+            Divider(color: Theme.of(context).colorScheme.outlineVariant, height: 1),
             const SizedBox(height: 20),
 
             // 2. --- AI ASSISTANT SECTION (DESIGN ORIGINAL COMPLEXE) ---
@@ -122,10 +194,12 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: _QuickInfoCard(
                     icon: Icons.calendar_month_rounded,
-                    iconColor: const Color(0xFF3B82F6),
+                    iconColor: Theme.of(context).colorScheme.primary,
                     title: 'Next Class',
-                    line1: 'Math Analysis',
-                    line2: '10:00 AM - 204',
+                    line1: _nextSession?.displayTitle ?? 'No classes',
+                    line2: _nextSession != null 
+                        ? '${_formatDuration(_nextSession!.start)} - ${_nextSession!.room}'
+                        : 'Enjoy your day!',
                     onTap: () => widget.onNavigate('emploi'),
                   ),
                 ),
@@ -135,7 +209,7 @@ class _HomePageState extends State<HomePage> {
                     icon: Icons.check_circle_rounded,
                     iconColor: const Color(0xFF10B981),
                     title: 'Tasks',
-                    line1: '3 tasks',
+                    line1: '$_pendingTasksCount tasks',
                     line2: 'remaining today',
                     largeStat: true,
                     onTap: () => widget.onNavigate('tasks'),
@@ -185,22 +259,52 @@ class _HomePageState extends State<HomePage> {
 
   // --- WIDGETS DE CONSTRUCTION DÉTAILLÉS ---
 
-  Widget _buildComplexAvatar() {
-    return Container(
-      width: 52, height: 52,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFFFFF), Color(0xFFE8EEF9)],
-        ),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: const Color(0xFFD6DEEE), width: 1.5),
-        boxShadow: const [
-          BoxShadow(color: Color(0x14233A70), blurRadius: 14, offset: Offset(0, 8)),
+  Widget _buildNotificationButton() {
+    return GestureDetector(
+      onTap: widget.onNotificationTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Theme.of(context).colorScheme.surface, Theme.of(context).colorScheme.surfaceContainerHighest],
+              ),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.notifications_rounded,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              size: 26,
+            ),
+          ),
+          Positioned(
+            top: 10,
+            right: 11,
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.error,
+                shape: BoxShape.circle,
+                border: Border.all(color: Theme.of(context).colorScheme.surface, width: 1.5),
+              ),
+            ),
+          ),
         ],
       ),
-      child: const Icon(Icons.person_rounded, color: Color(0xFF5E6B87), size: 28),
     );
   }
 
@@ -208,15 +312,19 @@ class _HomePageState extends State<HomePage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFE4F3FF), Color(0xFFEAE7FF), Color(0xFFFFE8EF)],
+          colors: [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.secondaryContainer, Theme.of(context).colorScheme.tertiaryContainer],
         ),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Colors.white.withOpacity(0.8)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x1D304B9D), blurRadius: 40, offset: Offset(0, 20)),
+        border: Border.all(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
+            blurRadius: 40,
+            offset: Offset(0, 20),
+          ),
         ],
       ),
       child: Column(
@@ -224,30 +332,43 @@ class _HomePageState extends State<HomePage> {
           // Illustration avec Stack (Design Original)
           _buildAIIllustration(isCompact),
           const SizedBox(height: 18),
-          const Text(
+          Text(
             'AI Study Assistant',
             style: TextStyle(
-              color: Color(0xFF1A2746),
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 22,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Ask me to summarize, plan or help with exercises',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF526285), fontWeight: FontWeight.w500, fontSize: 14),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 20),
           // Input
           _buildAIInput(),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: widget.onOpenChat,
+            icon: const Icon(Icons.chat_bubble_rounded, size: 18),
+            label: const Text('Open full chat'),
+          ),
           const SizedBox(height: 15),
           // Chips
           Wrap(
             alignment: WrapAlignment.center,
-            spacing: 8, runSpacing: 10,
-            children: suggestedPrompts.map((p) => _buildSuggestionChip(p)).toList(),
+            spacing: 8,
+            runSpacing: 10,
+            children: suggestedPrompts
+                .map((p) => _buildSuggestionChip(p))
+                .toList(),
           ),
         ],
       ),
@@ -255,15 +376,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAIIllustration(bool isCompact) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: isCompact ? 150 : 165,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFBDE9FF), Color(0xFFD1D6FF), Color(0xFFE6D0FF)],
-        ),
-        borderRadius: BorderRadius.circular(26),
-      ),
       child: const Center(child: _AssistantRobotIcon()),
     );
   }
@@ -272,20 +387,29 @@ class _HomePageState extends State<HomePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 15, offset: Offset(0, 5))],
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: _controller,
-              style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
-              decoration: const InputDecoration(
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              decoration: InputDecoration(
                 hintText: 'Type your question...',
                 border: InputBorder.none,
-                hintStyle: TextStyle(color: Color(0xFF94A3B8)),
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
               ),
               onSubmitted: (_) => _submitPrompt(),
             ),
@@ -295,10 +419,16 @@ class _HomePageState extends State<HomePage> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF2563EB)]),
+                gradient: LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary],
+                ),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+              child: Icon(
+                Icons.send_rounded,
+                color: Theme.of(context).colorScheme.surface,
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -313,37 +443,62 @@ class _HomePageState extends State<HomePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFD8E2F7)),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Text(
           text,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF334155), fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildScheduleSection() {
+    if (_nextSession == null) return const SizedBox.shrink();
+    
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              _HeaderIcon(icon: Icons.event_note_rounded, color: Color(0xFFF97316)),
+              _HeaderIcon(
+                icon: Icons.event_note_rounded,
+                color: Color(0xFFF97316),
+              ),
               SizedBox(width: 10),
-              Text('Today\'s Schedule', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 16)),
+              Text(
+                'Next Session',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 16,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 15),
-          const _ScheduleRow(time: '11:00 AM', title: 'Deep Work: Math', subtitle: 'Focus on Calculus', iconColor: Color(0xFF38BDF8)),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
-          const _ScheduleRow(time: '02:30 PM', title: 'English Lecture', subtitle: 'Hall B - Room 12', iconColor: Color(0xFF22C55E)),
+          _ScheduleRow(
+            time: _formatDuration(_nextSession!.start),
+            title: _nextSession!.displayTitle,
+            subtitle: '${_nextSession!.room} - ${_nextSession!.teacher}',
+            iconColor: Color(_nextSession!.colorValue),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatDuration(Duration d) {
+    final hours = d.inHours.toString().padLeft(2, '0');
+    final minutes = (d.inMinutes % 60).toString().padLeft(2, '0');
+    return '$hours:$minutes';
   }
 
   Widget _buildLastPromptCard() {
@@ -351,17 +506,32 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Last interaction', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B))),
+          Text(
+            'Last interaction',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(Icons.history_rounded, size: 16, color: Color(0xFF94A3B8)),
+              Icon(
+                Icons.history_rounded,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _lastPrompt,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -374,37 +544,164 @@ class _HomePageState extends State<HomePage> {
 
 // --- WIDGETS DE SUPPORT (PIXEL PERFECT) ---
 
-class _AssistantRobotIcon extends StatelessWidget {
+class _AssistantRobotIcon extends StatefulWidget {
   const _AssistantRobotIcon();
+
+  @override
+  State<_AssistantRobotIcon> createState() => _AssistantRobotIconState();
+}
+
+class _AssistantRobotIconState extends State<_AssistantRobotIcon> with SingleTickerProviderStateMixin {
+  late VideoPlayerController _controller;
+  late AnimationController _floatController;
+  late Animation<double> _floatAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // Changed video to ChatbotV as requested
+    _controller = VideoPlayerController.asset('images/ChatbotV.mp4')
+      ..setLooping(true)
+      ..setVolume(0.0) // muted
+      ..initialize().then((_) {
+        if (mounted) {
+          setState(() {});
+          _controller.play(); // autoplay
+        }
+      });
+
+    // Subtle floating animation
+    _floatController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+
+    _floatAnimation = Tween<double>(begin: -6.0, end: 6.0).animate(
+      CurvedAnimation(parent: _floatController, curve: Curves.easeInOutSine),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _floatController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       alignment: Alignment.center,
+      clipBehavior: Clip.none,
       children: [
-        // Cercle de fond
-        Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle)),
-        // Robot
-        const Icon(Icons.smart_toy_rounded, size: 80, color: Color(0xFF1D3E88)),
-        // Étoiles
-        const Positioned(top: 10, right: 10, child: Icon(Icons.auto_awesome, color: Colors.white, size: 24)),
-        const Positioned(bottom: 20, left: 0, child: Icon(Icons.auto_awesome, color: Colors.white, size: 16)),
+        // Floating Animated Robot (Background removed)
+        AnimatedBuilder(
+          animation: _floatAnimation,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _floatAnimation.value),
+              child: child,
+            );
+          },
+          child: Container(
+            width: 160, // Made it big, but safe for the text
+            height: 160,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                width: 4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: ClipOval( // Perfectly crops the video into a circle
+              child: _controller.value.isInitialized
+                  ? Transform.scale(
+                      scale: 1.9, // Keeps the zoom to hide UI
+                      child: Transform.translate(
+                        offset: const Offset(-12, 12), // Shifted less left and a bit more down to perfectly center the robot in the circle
+                        child: AspectRatio(
+                          aspectRatio: _controller.value.aspectRatio,
+                          child: VideoPlayer(_controller),
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: Theme.of(context).colorScheme.surface,
+                      child: Icon(
+                        Icons.smart_toy_rounded, 
+                        size: 80, 
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                      ),
+                    ),
+            ),
+          ),
+        ),
+
+        // Floating Stars for premium AI feel
+        Positioned(
+          top: -5,
+          right: -10,
+          child: AnimatedBuilder(
+            animation: _floatAnimation,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(0, -_floatAnimation.value * 0.5),
+                child: child,
+              );
+            },
+            child: Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.surface, size: 24),
+          ),
+        ),
+        Positioned(
+          bottom: 15,
+          left: -5,
+          child: AnimatedBuilder(
+            animation: _floatAnimation,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(0, _floatAnimation.value * 0.3),
+                child: child,
+              );
+            },
+            child: Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.surface, size: 16),
+          ),
+        ),
       ],
     );
   }
 }
 
 class AppCard extends StatelessWidget {
+  const AppCard({super.key, required this.child, this.padding, this.gradient});
+
   final Widget child;
-  const AppCard({super.key, required this.child});
+  final EdgeInsetsGeometry? padding;
+  final Gradient? gradient;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      width: double.infinity,
+      padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 20, offset: Offset(0, 10))],
+        color: gradient == null ? Theme.of(context).colorScheme.surface : null,
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withValues(alpha: 0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.2)),
       ),
       child: child,
     );
@@ -412,8 +709,22 @@ class AppCard extends StatelessWidget {
 }
 
 class _QuickInfoCard extends StatelessWidget {
-  final IconData icon; final Color iconColor; final String title; final String line1; final String line2; final VoidCallback? onTap; final bool largeStat;
-  const _QuickInfoCard({required this.icon, required this.iconColor, required this.title, required this.line1, required this.line2, this.onTap, this.largeStat = false});
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String line1;
+  final String line2;
+  final VoidCallback? onTap;
+  final bool largeStat;
+  const _QuickInfoCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.line1,
+    required this.line2,
+    this.onTap,
+    this.largeStat = false,
+  });
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -422,23 +733,43 @@ class _QuickInfoCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white, 
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Icon(icon, color: iconColor, size: 18),
             ),
             const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(line1, style: TextStyle(fontSize: largeStat ? 14 : 12, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B))),
-            Text(line2, style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8))),
+            Text(
+              line1,
+              style: TextStyle(
+                fontSize: largeStat ? 14 : 12,
+                fontWeight: FontWeight.w900,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            Text(
+              line2,
+              style: TextStyle(fontSize: 9, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+            ),
           ],
         ),
       ),
@@ -447,8 +778,16 @@ class _QuickInfoCard extends StatelessWidget {
 }
 
 class _ScheduleRow extends StatelessWidget {
-  final String time; final String title; final String subtitle; final Color iconColor;
-  const _ScheduleRow({required this.time, required this.title, required this.subtitle, required this.iconColor});
+  final String time;
+  final String title;
+  final String subtitle;
+  final Color iconColor;
+  const _ScheduleRow({
+    required this.time,
+    required this.title,
+    required this.subtitle,
+    required this.iconColor,
+  });
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -456,16 +795,42 @@ class _ScheduleRow extends StatelessWidget {
         Container(
           width: 70,
           padding: const EdgeInsets.symmetric(vertical: 6),
-          decoration: BoxDecoration(color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-          child: Center(child: Text(time, style: TextStyle(color: iconColor, fontWeight: FontWeight.w800, fontSize: 11))),
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              time,
+              style: TextStyle(
+                color: iconColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+            ),
+          ),
         ),
         const SizedBox(width: 15),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 14)),
-              Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
@@ -475,13 +840,17 @@ class _ScheduleRow extends StatelessWidget {
 }
 
 class _HeaderIcon extends StatelessWidget {
-  final IconData icon; final Color color;
+  final IconData icon;
+  final Color color;
   const _HeaderIcon({required this.icon, required this.color});
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Icon(icon, color: color, size: 18),
     );
   }
@@ -494,8 +863,12 @@ class _PagerDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      width: active ? 22 : 8, height: 8,
-      decoration: BoxDecoration(color: active ? const Color(0xFF3B82F6) : const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(4)),
+      width: active ? 22 : 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline,
+        borderRadius: BorderRadius.circular(4),
+      ),
     );
   }
 }

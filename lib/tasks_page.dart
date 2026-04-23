@@ -111,13 +111,12 @@ class _TasksPageState extends State<TasksPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
         backgroundColor: Colors.green,
         onPressed: () {
           showDialog(
             context: context,
             builder: (context) {
-              final _formKey = GlobalKey<FormState>();
+              final formKey = GlobalKey<FormState>();
               TextEditingController titleController = TextEditingController();
               TextEditingController dateController = TextEditingController();
               TextEditingController subjectController = TextEditingController();
@@ -125,7 +124,7 @@ class _TasksPageState extends State<TasksPage> {
               return AlertDialog(
                 title: Text("Add New Task"),
                 content: Form(
-                  key: _formKey,
+                  key: formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -194,7 +193,7 @@ class _TasksPageState extends State<TasksPage> {
                   ),
                   ElevatedButton(
                     onPressed: () {
-                      if (_formKey.currentState!.validate()) {
+                      if (formKey.currentState!.validate()) {
                         setState(() {
                           tasks.add(Task(
                             titleController.text,
@@ -213,6 +212,7 @@ class _TasksPageState extends State<TasksPage> {
             },
           );
         },
+        child: Icon(Icons.add),
       ),
     );
   }
