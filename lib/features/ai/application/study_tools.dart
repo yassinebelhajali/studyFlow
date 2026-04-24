@@ -1,8 +1,8 @@
-import '../../../data/tasks/local_task_repository.dart';
 import '../../../domain/models/study_task.dart';
 import '../../../domain/models/ai/tool_result.dart';
 import '../../../domain/models/schedule_session.dart';
 import '../../../domain/repositories/schedule_repository.dart';
+import '../../../domain/repositories/task_repository.dart';
 import 'ai_tool.dart';
 
 class TodayScheduleTool implements AiTool {
@@ -110,7 +110,7 @@ class StudyPlanningTool implements AiTool {
 class AddTaskTool implements AiTool {
   const AddTaskTool(this._taskRepository);
 
-  final LocalTaskRepository _taskRepository;
+  final TaskRepository _taskRepository;
 
   @override
   String get name => 'add_task';
@@ -136,7 +136,7 @@ class AddTaskTool implements AiTool {
     final subject = _extractSubject(input);
 
     final newTask = StudyTask(
-      id: LocalTaskRepository.createTaskId(),
+      id: createStudyTaskId(),
       title: title,
       subject: subject,
       dueAt: context.now.add(const Duration(days: 1)),

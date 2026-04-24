@@ -1,14 +1,17 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/notifications/study_notification_scheduler.dart';
 import '../../../data/notifications/local_notification_settings_store.dart';
 import '../../../data/profile/local_profile_repository.dart';
-import '../../../data/tasks/local_task_repository.dart';
 import '../../../domain/models/app_user.dart';
 import '../../../domain/models/notification_settings.dart';
 import '../../../domain/models/profile_identity.dart';
 import '../../../domain/models/profile_settings.dart';
 import '../../../domain/repositories/schedule_repository.dart';
+import '../../../domain/repositories/task_repository.dart';
 import '../../../shared/app_theme.dart';
 
 class ProfileController extends ChangeNotifier {
@@ -16,7 +19,7 @@ class ProfileController extends ChangeNotifier {
     required LocalProfileRepository profileRepository,
     required LocalNotificationSettingsStore notificationSettingsStore,
     required StudyNotificationScheduler notificationScheduler,
-    required LocalTaskRepository taskRepository,
+    required TaskRepository taskRepository,
     required ScheduleRepository scheduleRepository,
     required Future<void> Function() onLogout,
     required Future<void> Function({
@@ -30,6 +33,8 @@ class ProfileController extends ChangeNotifier {
     })
     onAuthPasswordChanged,
     required ValueChanged<ThemeMode> onThemeModeChanged,
+    Future<String?> Function(Uint8List bytes, String mime, String userId)?
+    onAvatarUpload,
   }) : _profileRepository = profileRepository,
        _notificationSettingsStore = notificationSettingsStore,
        _notificationScheduler = notificationScheduler,
@@ -38,12 +43,13 @@ class ProfileController extends ChangeNotifier {
        _onLogout = onLogout,
        _onAuthProfileUpdated = onAuthProfileUpdated,
        _onAuthPasswordChanged = onAuthPasswordChanged,
-       _onThemeModeChanged = onThemeModeChanged;
+       _onThemeModeChanged = onThemeModeChanged,
+       _onAvatarUpload = onAvatarUpload;
 
   final LocalProfileRepository _profileRepository;
   final LocalNotificationSettingsStore _notificationSettingsStore;
   final StudyNotificationScheduler _notificationScheduler;
-  final LocalTaskRepository _taskRepository;
+  final TaskRepository _taskRepository;
   final ScheduleRepository _scheduleRepository;
   final Future<void> Function() _onLogout;
   final Future<void> Function({required String fullName, required String email})
@@ -54,6 +60,8 @@ class ProfileController extends ChangeNotifier {
   })
   _onAuthPasswordChanged;
   final ValueChanged<ThemeMode> _onThemeModeChanged;
+  final Future<String?> Function(Uint8List bytes, String mime, String userId)?
+  _onAvatarUpload;
 
   String _activeUserId = 'guest';
   ProfileIdentity _identity = ProfileIdentity.fromUser(null);
@@ -91,12 +99,32 @@ class ProfileController extends ChangeNotifier {
     String? avatarPath,
   }) async {
     await _onAuthProfileUpdated(fullName: fullName.trim(), email: email.trim());
+
+    String? resolvedAvatarPath = avatarPath;
+    if (avatarPath != null &&
+        avatarPath.startsWith('data:image/') &&
+        _onAvatarUpload != null) {
+      try {
+        final headerEnd = avatarPath.indexOf(';');
+        final mime = avatarPath.substring(5, headerEnd);
+        final commaIndex = avatarPath.indexOf(',');
+        final bytes = base64Decode(avatarPath.substring(commaIndex + 1));
+        resolvedAvatarPath = await _onAvatarUpload(
+          bytes,
+          mime,
+          _activeUserId,
+        );
+      } catch (_) {
+        // keep base64 as fallback if upload fails
+      }
+    }
+
     _identity = _identity.copyWith(
       fullName: fullName.trim(),
       email: email.trim(),
       institution: institution.trim(),
       levelClass: levelClass.trim(),
-      avatarPath: avatarPath,
+      avatarPath: resolvedAvatarPath,
     );
     await _profileRepository.saveIdentity(_identity);
     notifyListeners();

@@ -3,14 +3,16 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/models/study_task.dart';
+import '../../domain/repositories/task_repository.dart';
 
-class LocalTaskRepository {
+class LocalTaskRepository implements TaskRepository {
   LocalTaskRepository(this._preferences);
 
   static const _storageKey = 'studyflow.tasks.v1';
 
   final SharedPreferences _preferences;
 
+  @override
   Future<List<StudyTask>> getTasks() async {
     final encoded = _preferences.getString(_storageKey);
     if (encoded == null || encoded.trim().isEmpty) {
@@ -37,13 +39,14 @@ class LocalTaskRepository {
     }
   }
 
+  @override
   Future<void> saveTasks(List<StudyTask> tasks) async {
     final encoded = jsonEncode(tasks.map((task) => task.toJson()).toList());
     await _preferences.setString(_storageKey, encoded);
   }
 
   static String createTaskId() {
-    return 'task-${DateTime.now().microsecondsSinceEpoch}';
+    return createStudyTaskId();
   }
 
   static List<StudyTask> _seedTasks() {

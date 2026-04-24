@@ -68,8 +68,8 @@ class StudyChatRepository implements ChatRepository {
   }
 
   AiChatRequest _requestFor(AiConversation conversation, String userMessage) {
-    // Send only the most recent window to the backend. The backend's SQLite
-    // memory fills in older context when needed (e.g. new device / cleared
+    // Send only the most recent window to the backend. The backend's
+    // persistent AI memory fills in older context when needed (e.g. new device / cleared
     // history), so we do not need to send the entire history on every request.
     const maxMessages = 20;
     final allMessages = conversation.messages;

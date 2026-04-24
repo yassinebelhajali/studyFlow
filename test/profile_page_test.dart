@@ -11,6 +11,7 @@ import 'package:studyflow/data/profile/local_profile_repository.dart';
 import 'package:studyflow/data/schedule/local_schedule_repository.dart';
 import 'package:studyflow/data/tasks/local_task_repository.dart';
 import 'package:studyflow/domain/models/app_user.dart';
+import 'package:studyflow/core/navigation/app_routes.dart';
 import 'package:studyflow/features/profile/presentation/profile_controller.dart';
 import 'package:studyflow/features/profile/presentation/profile_page.dart';
 import 'package:studyflow/features/profile/presentation/profile_settings_page.dart';
@@ -126,6 +127,75 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('French'), findsOneWidget);
+
+    await tester.binding.setSurfaceSize(null);
+  });
+
+  testWidgets('logout navigates to login route', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(430, 980));
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+
+    final notificationStore = LocalNotificationSettingsStore(preferences);
+    await notificationStore.load();
+    final scheduler = StudyNotificationScheduler(
+      notificationService: LocalNotificationService(
+        plugin: FlutterLocalNotificationsPlugin(),
+      ),
+      permissionHandler: NotificationPermissionHandler(
+        FlutterLocalNotificationsPlugin(),
+      ),
+      settingsStore: notificationStore,
+    );
+
+    final controller = ProfileController(
+      profileRepository: LocalProfileRepository(preferences),
+      notificationSettingsStore: notificationStore,
+      notificationScheduler: scheduler,
+      taskRepository: LocalTaskRepository(preferences),
+      scheduleRepository: const LocalScheduleRepository(),
+      onLogout: () async {},
+      onAuthProfileUpdated: ({required fullName, required email}) async {},
+      onAuthPasswordChanged:
+          ({required currentPassword, required newPassword}) async {},
+      onThemeModeChanged: (_) {},
+    );
+
+    await controller.initialize(
+      const AppUser(
+        id: 'user-1',
+        fullName: 'Study User',
+        email: 'user@studyflow.app',
+        cin: '12345678',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        routes: {
+          AppRoutes.login: (_) =>
+              const Scaffold(body: Center(child: Text('Login Screen'))),
+        },
+        home: ProfilePage(
+          controller: controller,
+          notificationRepository: LocalNotificationRepository(preferences),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Logout'));
+    await tester.pumpAndSettle();
+
+    final alertDialog = find.byType(AlertDialog);
+    final confirmLogoutButton = find.descendant(
+      of: alertDialog,
+      matching: find.byType(FilledButton),
+    );
+    await tester.tap(confirmLogoutButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Login Screen'), findsOneWidget);
 
     await tester.binding.setSurfaceSize(null);
   });

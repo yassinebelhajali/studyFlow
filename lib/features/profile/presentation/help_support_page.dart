@@ -48,7 +48,7 @@ class HelpSupportPage extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Text(
-                  'Yes. Core profile, tasks, and reminder settings are saved locally. Sync features will be expanded in future backend releases.',
+                  'Yes. Recent profile, tasks, and reminder settings stay available locally, and your account and tasks sync through Supabase when you are online.',
                 ),
               ),
             ],
@@ -60,7 +60,7 @@ class HelpSupportPage extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Text(
-                  'Go to Profile > Edit Profile. Your name, email, and avatar are persisted locally on this device.',
+                  'Go to Profile > Edit Profile. Your name and email sync to your account, while avatar selection is still stored on this device.',
                 ),
               ),
             ],
@@ -108,7 +108,7 @@ class HelpSupportPage extends StatelessWidget {
         leading: Icon(Icons.info_outline),
         title: Text('StudyFlow 1.0.0'),
         subtitle: Text(
-          'Student productivity planner with local-first experience',
+          'Student productivity planner with Supabase sync',
         ),
       ),
     );

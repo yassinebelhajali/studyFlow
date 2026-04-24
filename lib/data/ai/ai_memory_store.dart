@@ -25,7 +25,7 @@ class AiMemoryStore {
   }
 
   Future<void> saveConversation(AiConversation conversation) async {
-    // Keep only the most recent messages locally. The backend SQLite store
+    // Keep only the most recent messages locally. The backend AI store
     // carries authoritative long-term context, so there is no need to persist
     // the entire history in SharedPreferences (which has no size management).
     const maxStoredMessages = 60;

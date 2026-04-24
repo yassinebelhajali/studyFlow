@@ -1,7 +1,7 @@
 # StudyFlow
 
-Flutter study planner with local auth, an API-ready schedule repository, and a
-small Express/SQLite backend for the timetable.
+Flutter study planner with Supabase auth/data, an API-backed schedule repository,
+and a small Express backend for timetable and AI routes.
 
 ## Flutter App
 
@@ -13,7 +13,7 @@ flutter test
 flutter analyze
 ```
 
-Run against the local backend:
+Run the Flutter app against the local backend:
 
 ```bash
 flutter run -d chrome --dart-define=STUDYFLOW_API_BASE_URL=http://localhost:3000
@@ -42,14 +42,16 @@ flutter run --dart-define=STUDYFLOW_API_BASE_URL=http://10.0.2.2:3000
 
 If the backend is not running, the app falls back to the local seeded schedule.
 
-To store accounts in the backend SQLite database instead of local device storage,
-set `STUDYFLOW_AUTH_BASE_URL` to the backend URL, for example:
+To use Supabase from Flutter, pass your project URL and publishable key:
 
 ```bash
 flutter run \
-	--dart-define=STUDYFLOW_API_BASE_URL=http://localhost:3000 \
-	--dart-define=STUDYFLOW_AUTH_BASE_URL=http://localhost:3000
+	--dart-define=NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
+	--dart-define=NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key \
+	--dart-define=STUDYFLOW_API_BASE_URL=http://localhost:3000
 ```
+
+Apply the SQL in `supabase/schema.sql` before starting the app.
 
 ## Backend API
 
@@ -75,6 +77,28 @@ npm run dev
 ```
 
 Environment variables are documented in `backend/.env.example`.
+
+The backend now uses Supabase instead of SQLite. Set these in `backend/.env.local`:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+One-time migration from the old SQLite database:
+
+```bash
+cd backend
+npm run migrate:sqlite-to-supabase -- --dry-run
+npm run migrate:sqlite-to-supabase
+```
+
+Notes:
+- The script reads `backend/data/studyflow.sqlite`.
+- It writes a report to `backend/data/sqlite-to-supabase-report.json`.
+- Legacy SQLite passwords in this project use a custom SHA-256 format, not a Supabase-supported import hash, so migrated auth users receive a temporary password unless you pass `--defaultPassword` or set `MIGRATION_DEFAULT_PASSWORD`.
+- Existing invalid orphan rows such as tasks or AI sessions with non-UUID `user_id` values are skipped and listed in the report.
 
 To use Gemini, put the API key only in the backend environment:
 

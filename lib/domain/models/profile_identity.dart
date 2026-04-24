@@ -17,8 +17,6 @@ class ProfileIdentity {
   final String levelClass;
   final String? avatarPath;
 
-  static const defaultAvatar = 'images/cc.jpg';
-
   factory ProfileIdentity.fromUser(AppUser? user) {
     return ProfileIdentity(
       userId: user?.id ?? 'guest',
@@ -26,7 +24,7 @@ class ProfileIdentity {
       email: user?.email ?? 'student@studyflow.local',
       institution: 'University of Technology',
       levelClass: 'Computer Science - Year 3',
-      avatarPath: defaultAvatar,
+      avatarPath: user?.avatarUrl,
     );
   }
 

@@ -16,19 +16,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<OnboardingData> _pages = [
     OnboardingData(
       title: 'Organize Your Studies',
-      description: 'Keep track of your classes, tasks, and exams all in one place.',
+      description:
+          'Keep track of your classes, tasks, and exams all in one place.',
       icon: Icons.auto_stories_rounded,
       color: Color(0xFF3B82F6),
     ),
     OnboardingData(
       title: 'AI Study Assistant',
-      description: 'Ask our AI anything! From summarizing notes to planning your day.',
+      description:
+          'Ask our AI anything! From summarizing notes to planning your day.',
       icon: Icons.smart_toy_rounded,
       color: Color(0xFF8B5CF6),
     ),
     OnboardingData(
       title: 'Achieve Your Goals',
-      description: 'Stay motivated and track your progress with smart notifications.',
+      description:
+          'Stay motivated and track your progress with smart notifications.',
       icon: Icons.emoji_events_rounded,
       color: Color(0xFF10B981),
     ),
@@ -80,14 +83,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Container(
                           padding: const EdgeInsets.all(32),
                           decoration: BoxDecoration(
-                            color: data.color.withOpacity(0.1),
+                            color: data.color.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(
-                            data.icon,
-                            size: 100,
-                            color: data.color,
-                          ),
+                          child: Icon(data.icon, size: 100, color: data.color),
                         ),
                         const SizedBox(height: 48),
                         Text(
@@ -151,7 +150,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ),
                       child: Text(
-                        _currentPage == _pages.length - 1 ? 'Get Started' : 'Next',
+                        _currentPage == _pages.length - 1
+                            ? 'Get Started'
+                            : 'Next',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,

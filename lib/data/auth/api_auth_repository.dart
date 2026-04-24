@@ -28,10 +28,12 @@ class ApiAuthRepository implements AuthRepository {
     }
 
     try {
-      final response = await _client.get(
-        _uri('/api/auth/users/${Uri.encodeComponent(userId)}'),
-        headers: const {'Accept': 'application/json'},
-      );
+      final response = await _client
+          .get(
+            _uri('/api/auth/users/${Uri.encodeComponent(userId)}'),
+            headers: const {'Accept': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 404) {
         await sessionStore.clearCurrentUserId();
@@ -61,14 +63,16 @@ class ApiAuthRepository implements AuthRepository {
     required String password,
   }) async {
     try {
-      final response = await _client.post(
-        _uri('/api/auth/signin'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'email': email, 'password': password}),
-      );
+      final response = await _client
+          .post(
+            _uri('/api/auth/signin'),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'email': email, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode != 200) {
         if (_shouldFallback(response.statusCode)) {
@@ -103,19 +107,21 @@ class ApiAuthRepository implements AuthRepository {
   @override
   Future<AppUser> signUp(SignUpRequest request) async {
     try {
-      final response = await _client.post(
-        _uri('/api/auth/signup'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'fullName': request.fullName,
-          'email': request.email,
-          'cin': request.cin,
-          'password': request.password,
-        }),
-      );
+      final response = await _client
+          .post(
+            _uri('/api/auth/signup'),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'fullName': request.fullName,
+              'email': request.email,
+              'cin': request.cin,
+              'password': request.password,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode != 201) {
         if (_shouldFallback(response.statusCode)) {
@@ -159,14 +165,16 @@ class ApiAuthRepository implements AuthRepository {
     required String email,
   }) async {
     try {
-      final response = await _client.patch(
-        _uri('/api/auth/users/${Uri.encodeComponent(userId)}'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'fullName': fullName, 'email': email}),
-      );
+      final response = await _client
+          .patch(
+            _uri('/api/auth/users/${Uri.encodeComponent(userId)}'),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'fullName': fullName, 'email': email}),
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode != 200) {
         if (_shouldFallback(response.statusCode) ||
@@ -220,17 +228,19 @@ class ApiAuthRepository implements AuthRepository {
     required String newPassword,
   }) async {
     try {
-      final response = await _client.patch(
-        _uri('/api/auth/users/${Uri.encodeComponent(userId)}/password'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'currentPassword': currentPassword,
-          'newPassword': newPassword,
-        }),
-      );
+      final response = await _client
+          .patch(
+            _uri('/api/auth/users/${Uri.encodeComponent(userId)}/password'),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'currentPassword': currentPassword,
+              'newPassword': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode != 204) {
         if (_shouldFallback(response.statusCode) ||

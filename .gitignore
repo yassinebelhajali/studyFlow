@@ -52,3 +52,4 @@ backend/data/*.sqlite-wal
 .env
 .env.local
 .env.*.local
+dart_defines.json

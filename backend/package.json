@@ -2,17 +2,17 @@
   "name": "studyflow-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "StudyFlow API backed by SQLite",
+  "description": "StudyFlow API backed by Supabase",
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "supabase:set-password": "node scripts/set_supabase_password.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.9.1",
+    "@supabase/supabase-js": "^2.104.1",
     "cors": "^2.8.5",
     "express": "^4.18.3"
-  },
-  "devDependencies": {}
+  }
 }

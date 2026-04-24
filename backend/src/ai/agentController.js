@@ -74,7 +74,7 @@ class AgentController {
       messageCount: aiRequest.messages.length,
     });
 
-    const memory = this._memoryStore.load(conversationId, userId);
+    const memory = await this._memoryStore.load(conversationId, userId);
     logger.debug('agent.memory.loaded', {
       conversationId,
       hasSummary: memory.summary.length > 0,
@@ -92,7 +92,7 @@ class AgentController {
           messages: buildChatMessages({ aiRequest, memory }),
           conversationId,
         });
-        this._saveMemory({ aiRequest, memory, toolResults, finalAnswer: content });
+        await this._saveMemory({ aiRequest, memory, toolResults, finalAnswer: content });
         logger.info('agent.run.done', { conversationId, mode, durationMs: elapsed(), contentLength: content.length });
         return { content, actions, toolResults };
       }
@@ -110,7 +110,7 @@ class AgentController {
           directAnswer: '',
         });
         const content = await this._respondWithRetry({ stream, onDelta, messages, conversationId });
-        this._saveMemory({ aiRequest, memory, toolResults: providedToolResults, finalAnswer: content });
+        await this._saveMemory({ aiRequest, memory, toolResults: providedToolResults, finalAnswer: content });
         logger.info('agent.run.done', { conversationId, mode, durationMs: elapsed(), contentLength: content.length });
         return { content, actions, toolResults: providedToolResults };
       }
@@ -157,7 +157,7 @@ class AgentController {
         directAnswer: plan.mode === 'answer' ? plan.answer : '',
       });
       const content = await this._respondWithRetry({ stream, onDelta, messages, conversationId });
-      this._saveMemory({ aiRequest, memory, toolResults, finalAnswer: content });
+      await this._saveMemory({ aiRequest, memory, toolResults, finalAnswer: content });
 
       logger.info('agent.run.done', {
         conversationId,
@@ -319,7 +319,7 @@ class AgentController {
     if (stream && onDelta) {
       onDelta(content);
     }
-    this._saveMemory({ aiRequest, memory, toolResults, finalAnswer: content });
+    await this._saveMemory({ aiRequest, memory, toolResults, finalAnswer: content });
     return {
       content,
       actions,
@@ -328,7 +328,7 @@ class AgentController {
     };
   }
 
-  _saveMemory({ aiRequest, memory, toolResults, finalAnswer }) {
+  async _saveMemory({ aiRequest, memory, toolResults, finalAnswer }) {
     const requestMessages = aiRequest.messages
       .filter((message) => message.content.trim() !== '')
       .map((message) => ({
@@ -345,7 +345,7 @@ class AgentController {
 
     const lastMessages = [...requestMessages, ...assistantEntry].slice(-16);
 
-    this._memoryStore.save({
+    await this._memoryStore.save({
       conversationId: aiRequest.conversationId,
       userId: aiRequest.userId,
       summary: buildMemorySummary({

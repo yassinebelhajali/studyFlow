@@ -1,8 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const Database = require('better-sqlite3');
-
 const { AgentController } = require('../src/ai/agentController');
 const {
   LlmReasoningLayer,
@@ -15,6 +13,7 @@ const { AgentMemoryStore } = require('../src/ai/memoryStore');
 const { ToolRegistry } = require('../src/ai/toolRegistry');
 const { createScheduleTools } = require('../src/ai/tools/scheduleTools');
 const { createStudyPlanningTools } = require('../src/ai/tools/studyPlanningTools');
+const { InMemoryStore } = require('../src/data/inMemoryStore');
 const {
   buildConversationContext,
   applyContextBudget,
@@ -26,8 +25,8 @@ const {
 // ---------------------------------------------------------------------------
 
 test('agent plans and executes registered schedule tools', async () => {
-  const db = createTestDatabase();
-  seedSession(db, {
+  const store = createTestStore();
+  seedSession(store, {
     id: 'monday-ai',
     dayIndex: 0,
     title: 'AI',
@@ -37,7 +36,7 @@ test('agent plans and executes registered schedule tools', async () => {
     startTime: '08:30',
     endTime: '10:00',
   });
-  const controller = createController(db);
+  const controller = createController(store);
 
   const run = await controller.complete(
     createRequest('What is my Monday schedule?'),
@@ -52,8 +51,8 @@ test('agent plans and executes registered schedule tools', async () => {
 });
 
 test('agent rejects hallucinated tool calls without throwing', async () => {
-  const db = createTestDatabase();
-  const memoryStore = new AgentMemoryStore(db);
+  const store = createTestStore();
+  const memoryStore = new AgentMemoryStore(store);
   memoryStore.initialize();
   const controller = new AgentController({
     llm: {
@@ -67,7 +66,7 @@ test('agent rejects hallucinated tool calls without throwing', async () => {
         return 'I could not run that action, so I answered safely.';
       },
     },
-    tools: new ToolRegistry(createStudyPlanningTools()),
+    tools: new ToolRegistry(createStudyPlanningTools(store)),
     memoryStore,
   });
 
@@ -80,8 +79,8 @@ test('agent rejects hallucinated tool calls without throwing', async () => {
 });
 
 test('agent can stream action events before text deltas', async () => {
-  const db = createTestDatabase();
-  seedSession(db, {
+  const store = createTestStore();
+  seedSession(store, {
     id: 'monday-ai',
     dayIndex: 0,
     title: 'AI',
@@ -91,7 +90,7 @@ test('agent can stream action events before text deltas', async () => {
     startTime: '08:30',
     endTime: '10:00',
   });
-  const controller = createController(db);
+  const controller = createController(store);
   const writes = [];
   const response = {
     write(payload) {
@@ -110,8 +109,8 @@ test('agent can stream action events before text deltas', async () => {
 // ---------------------------------------------------------------------------
 
 test('_saveMemory includes the assistant final answer in lastMessages', async () => {
-  const db = createTestDatabase();
-  const memoryStore = new AgentMemoryStore(db);
+  const store = createTestStore();
+  const memoryStore = new AgentMemoryStore(store);
   memoryStore.initialize();
 
   const assistantReply = 'Here is your study plan for today.';
@@ -131,7 +130,7 @@ test('_saveMemory includes the assistant final answer in lastMessages', async ()
   const req = createRequest('Build me a study plan');
   await controller.complete(req);
 
-  const saved = memoryStore.load(req.conversationId, req.userId);
+  const saved = await memoryStore.load(req.conversationId, req.userId);
   const assistantMessages = saved.lastMessages.filter((m) => m.role === 'assistant');
   assert.ok(
     assistantMessages.length > 0,
@@ -141,8 +140,8 @@ test('_saveMemory includes the assistant final answer in lastMessages', async ()
 });
 
 test('agent retries transient planner failures before running tools or answering', async () => {
-  const db = createTestDatabase();
-  const memoryStore = new AgentMemoryStore(db);
+  const store = createTestStore();
+  const memoryStore = new AgentMemoryStore(store);
   memoryStore.initialize();
   let planAttempts = 0;
 
@@ -196,8 +195,8 @@ test('planner prompt includes recent conversation context for follow-up requests
 });
 
 test('agent returns capability fallback when LLM is busy', async () => {
-  const db = createTestDatabase();
-  const memoryStore = new AgentMemoryStore(db);
+  const store = createTestStore();
+  const memoryStore = new AgentMemoryStore(store);
   memoryStore.initialize();
   const controller = new AgentController({
     llm: {
@@ -221,8 +220,8 @@ test('agent returns capability fallback when LLM is busy', async () => {
 });
 
 test('agent fallback runs local tools when planner LLM is unavailable', async () => {
-  const db = createTestDatabase();
-  seedSession(db, {
+  const store = createTestStore();
+  seedSession(store, {
     id: 'monday-ai',
     dayIndex: 0,
     title: 'AI',
@@ -232,7 +231,7 @@ test('agent fallback runs local tools when planner LLM is unavailable', async ()
     startTime: '08:30',
     endTime: '10:00',
   });
-  const memoryStore = new AgentMemoryStore(db);
+  const memoryStore = new AgentMemoryStore(store);
   memoryStore.initialize();
   const controller = new AgentController({
     llm: {
@@ -244,8 +243,8 @@ test('agent fallback runs local tools when planner LLM is unavailable', async ()
       },
     },
     tools: new ToolRegistry([
-      ...createScheduleTools(db),
-      ...createStudyPlanningTools(),
+      ...createScheduleTools(store),
+      ...createStudyPlanningTools(store),
     ]),
     memoryStore,
   });
@@ -499,8 +498,8 @@ test('gemini provider calls generateContent with API key header', async () => {
 // ---------------------------------------------------------------------------
 
 test('context is available on the second request via memory after first completes', async () => {
-  const db = createTestDatabase();
-  const memoryStore = new AgentMemoryStore(db);
+  const store = createTestStore();
+  const memoryStore = new AgentMemoryStore(store);
   memoryStore.initialize();
 
   const capturedMessages = [];
@@ -554,43 +553,25 @@ test('context is available on the second request via memory after first complete
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createController(db) {
-  const memoryStore = new AgentMemoryStore(db);
+function createController(store) {
+  const memoryStore = new AgentMemoryStore(store);
   memoryStore.initialize();
   return new AgentController({
     llm: new LlmReasoningLayer({ LLM_PROVIDER: 'mock' }),
     tools: new ToolRegistry([
-      ...createScheduleTools(db),
-      ...createStudyPlanningTools(),
+      ...createScheduleTools(store),
+      ...createStudyPlanningTools(store),
     ]),
     memoryStore,
   });
 }
 
-function createTestDatabase() {
-  const db = new Database(':memory:');
-  db.exec(`
-    CREATE TABLE schedule_sessions (
-      id TEXT PRIMARY KEY,
-      day_index INTEGER NOT NULL CHECK (day_index BETWEEN 0 AND 5),
-      title TEXT NOT NULL,
-      room TEXT NOT NULL,
-      teacher TEXT NOT NULL,
-      color_hex TEXT NOT NULL,
-      start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL
-    );
-  `);
-  return db;
+function createTestStore() {
+  return new InMemoryStore();
 }
 
-function seedSession(db, session) {
-  db.prepare(`
-    INSERT INTO schedule_sessions
-      (id, day_index, title, room, teacher, color_hex, start_time, end_time)
-    VALUES
-      (@id, @dayIndex, @title, @room, @teacher, @colorHex, @startTime, @endTime)
-  `).run(session);
+function seedSession(store, session) {
+  store.seedSession(session);
 }
 
 function createRequest(content) {

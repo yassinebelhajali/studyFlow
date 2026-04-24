@@ -1,9 +1,7 @@
 const fs = require('node:fs');
 const { randomUUID } = require('node:crypto');
 const path = require('node:path');
-const crypto = require('node:crypto');
 
-const Database = require('better-sqlite3');
 const cors = require('cors');
 const express = require('express');
 
@@ -14,23 +12,29 @@ const { ToolRegistry } = require('./ai/toolRegistry');
 const { createScheduleTools } = require('./ai/tools/scheduleTools');
 const { createStudyPlanningTools } = require('./ai/tools/studyPlanningTools');
 const { loadEnvFiles } = require('./config/env');
+const { SupabaseStore } = require('./data/supabaseStore');
 const logger = require('./logger');
 
 loadEnvFiles();
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
-const databasePath = path.resolve(
-  process.cwd(),
-  process.env.DATABASE_PATH || './data/studyflow.sqlite',
-);
 const corsOrigin = process.env.CORS_ORIGIN || '*';
-
-fs.mkdirSync(path.dirname(databasePath), { recursive: true });
-
-const db = new Database(databasePath);
-db.pragma('journal_mode = WAL');
-const agentMemoryStore = new AgentMemoryStore(db);
+const store = new SupabaseStore({
+  supabaseUrl:
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  serviceRoleKey:
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    '',
+  publishableKey:
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    '',
+});
+const agentMemoryStore = new AgentMemoryStore(store);
 let agentController;
 
 app.use(
@@ -59,14 +63,12 @@ app.use((request, response, next) => {
   next();
 });
 
-initializeDatabase();
 agentMemoryStore.initialize();
-seedScheduleIfEmpty();
 agentController = new AgentController({
   llm: new LlmReasoningLayer(process.env),
   tools: new ToolRegistry([
-    ...createScheduleTools(db),
-    ...createStudyPlanningTools(db),
+    ...createScheduleTools(store),
+    ...createStudyPlanningTools(store),
   ]),
   memoryStore: agentMemoryStore,
 });
@@ -75,85 +77,49 @@ app.get('/health', (_request, response) => {
   response.json({ ok: true });
 });
 
-app.post('/api/auth/signup', (request, response) => {
+app.post('/api/auth/signup', asyncHandler(async (request, response) => {
   const validation = validateAuthRequest(request.body);
   if (!validation.ok) {
     return response.status(400).json({ error: validation.error });
   }
 
   const { fullName, email, cin, password } = validation.value;
-  const passwordHash = hashPassword(password);
-  const normalizedEmail = email.toLowerCase();
-  const existingUser = db
-    .prepare('SELECT id FROM users WHERE lower(email) = lower(?)')
-    .get(normalizedEmail);
-
-  if (existingUser) {
+  if (await store.hasUserWithEmail(email)) {
     return response
       .status(409)
       .json({ error: 'An account already exists for this email' });
   }
 
-  const user = {
-    id: crypto.randomUUID(),
-    fullName,
-    email: normalizedEmail,
-    cin,
-    passwordHash,
-  };
-
-  db.prepare(
-    `INSERT INTO users (id, full_name, email, cin, password_hash)
-     VALUES (@id, @fullName, @email, @cin, @passwordHash)`,
-  ).run(user);
-
+  const user = await store.signUp({ fullName, email, cin, password });
   return response.status(201).json(toApiUser(user));
-});
+}));
 
-app.post('/api/auth/signin', (request, response) => {
+app.post('/api/auth/signin', asyncHandler(async (request, response) => {
   const validation = validateSignInRequest(request.body);
   if (!validation.ok) {
     return response.status(400).json({ error: validation.error });
   }
 
-  const { email, password } = validation.value;
-  const user = db
-    .prepare(
-      `SELECT id, full_name AS fullName, email, cin, password_hash AS passwordHash
-       FROM users
-       WHERE lower(email) = lower(?)`,
-    )
-    .get(email.toLowerCase());
-
-  if (!user || user.passwordHash !== hashPassword(password)) {
-    return response.status(401).json({ error: 'Email or password incorrect' });
-  }
-
+  const user = await store.signIn(validation.value);
   return response.json(toApiUser(user));
-});
+}));
 
-app.get('/api/auth/users/:id', (request, response) => {
+app.get('/api/auth/users/:id', asyncHandler(async (request, response) => {
   const userId = String(request.params.id || '').trim();
   if (!userId) {
     return response.status(400).json({ error: 'User id is required' });
   }
 
-  const user = db
-    .prepare(
-      `SELECT id, full_name AS fullName, email, cin
-       FROM users
-       WHERE id = ?`,
-    )
-    .get(userId);
+  const user = await store.getUserById(userId);
 
   if (!user) {
     return response.status(404).json({ error: 'User not found' });
   }
 
   return response.json(user);
-});
+}));
 
-app.patch('/api/auth/users/:id', (request, response) => {
+app.patch('/api/auth/users/:id', asyncHandler(async (request, response) => {
   const userId = String(request.params.id || '').trim();
   if (!userId) {
     return response.status(400).json({ error: 'User id is required' });
@@ -164,37 +130,27 @@ app.patch('/api/auth/users/:id', (request, response) => {
     return response.status(400).json({ error: validation.error });
   }
 
-  const existingUser = db
-    .prepare('SELECT id, cin FROM users WHERE id = ?')
-    .get(userId);
+  const existingUser = await store.getUserById(userId);
   if (!existingUser) {
     return response.status(404).json({ error: 'User not found' });
   }
 
-  const duplicate = db
-    .prepare('SELECT id FROM users WHERE lower(email) = lower(?) AND id != ?')
-    .get(validation.value.email, userId);
-  if (duplicate) {
+  if (await store.hasUserWithEmail(validation.value.email, userId)) {
     return response
       .status(409)
       .json({ error: 'An account already exists for this email' });
   }
 
-  db.prepare(
-    `UPDATE users
-     SET full_name = ?, email = ?
-     WHERE id = ?`,
-  ).run(validation.value.fullName, validation.value.email, userId);
-
-  return response.json({
-    id: userId,
+  const updatedUser = await store.updateUserProfile({
+    userId,
     fullName: validation.value.fullName,
     email: validation.value.email,
-    cin: existingUser.cin,
   });
-});
 
-app.patch('/api/auth/users/:id/password', (request, response) => {
+  return response.json(updatedUser);
+}));
+
+app.patch('/api/auth/users/:id/password', asyncHandler(async (request, response) => {
   const userId = String(request.params.id || '').trim();
   if (!userId) {
     return response.status(400).json({ error: 'User id is required' });
@@ -205,125 +161,74 @@ app.patch('/api/auth/users/:id/password', (request, response) => {
     return response.status(400).json({ error: validation.error });
   }
 
-  const existingUser = db
-    .prepare('SELECT id, password_hash AS passwordHash FROM users WHERE id = ?')
-    .get(userId);
+  const existingUser = await store.getUserById(userId);
   if (!existingUser) {
     return response.status(404).json({ error: 'User not found' });
   }
 
-  if (existingUser.passwordHash !== hashPassword(validation.value.currentPassword)) {
-    return response.status(401).json({ error: 'Current password is incorrect' });
-  }
-
-  db.prepare(
-    `UPDATE users
-     SET password_hash = ?
-     WHERE id = ?`,
-  ).run(hashPassword(validation.value.newPassword), userId);
-
+  await store.changePassword({
+    userId,
+    currentPassword: validation.value.currentPassword,
+    newPassword: validation.value.newPassword,
+  });
   return response.status(204).send();
-});
+}));
 
-app.get('/api/schedule', (_request, response) => {
-  const rows = db
-    .prepare(
-      `SELECT id, day_index, title, room, teacher, color_hex, start_time, end_time
-       FROM schedule_sessions
-       ORDER BY day_index ASC, start_time ASC, title ASC`,
-    )
-    .all();
-
+app.get('/api/schedule', asyncHandler(async (_request, response) => {
+  const rows = await store.listWeeklySchedule();
   response.json(rows.map(toApiSession));
-});
+}));
 
-app.get('/api/courses', (_request, response) => {
-  const rows = db
-    .prepare(
-      `SELECT title, room, teacher, color_hex, COUNT(*) as sessions_count
-       FROM schedule_sessions
-       GROUP BY title, room, teacher, color_hex
-       ORDER BY title ASC`,
-    )
-    .all();
+app.get('/api/courses', asyncHandler(async (_request, response) => {
+  const rows = await store.listCourses();
+  response.json(rows);
+}));
 
-  response.json(rows.map(row => ({
-    title: row.title,
-    room: row.room,
-    teacher: row.teacher,
-    colorHex: row.color_hex,
-    sessionsCount: row.sessions_count,
-  })));
-});
-
-app.post('/api/schedule', requireAdminToken, (request, response) => {
+app.post('/api/schedule', requireAdminToken, asyncHandler(async (request, response) => {
   const validation = validateSession(request.body);
   if (!validation.ok) {
     return response.status(400).json({ error: validation.error });
   }
 
   const session = validation.value;
-  db.prepare(
-    `INSERT INTO schedule_sessions
-      (id, day_index, title, room, teacher, color_hex, start_time, end_time)
-     VALUES
-      (@id, @dayIndex, @title, @room, @teacher, @colorHex, @startTime, @endTime)
-     ON CONFLICT(id) DO UPDATE SET
-      day_index = excluded.day_index,
-      title = excluded.title,
-      room = excluded.room,
-      teacher = excluded.teacher,
-      color_hex = excluded.color_hex,
-      start_time = excluded.start_time,
-      end_time = excluded.end_time`,
-  ).run(session);
-
+  await store.upsertScheduleSession(session);
   return response.status(201).json(session);
-});
+}));
 
-app.get('/api/tasks', (request, response) => {
+app.get('/api/tasks', asyncHandler(async (request, response) => {
   const userId = request.query.userId;
   if (!userId) return response.status(400).json({ error: 'userId is required' });
 
-  const rows = db
-    .prepare(
-      `SELECT id, title, subject, due_at AS dueAt, completed, reminder_at AS reminderAt
-       FROM tasks
-       WHERE user_id = ?
-       ORDER BY due_at ASC`,
-    )
-    .all(userId);
+  const rows = await store.listTasksByUser(String(userId));
 
-  response.json(rows.map(row => ({
-    ...row,
-    completed: !!row.completed
-  })));
-});
+  response.json(rows.map(toApiTask));
+}));
 
-app.post('/api/tasks', (request, response) => {
-  const { id, userId, title, subject, dueAt, completed, reminderAt } = request.body;
+app.post('/api/tasks', asyncHandler(async (request, response) => {
+  const { id, userId, title, subject, dueAt, completed, reminderAt, priority } = request.body;
   if (!userId || !title || !dueAt) {
     return response.status(400).json({ error: 'userId, title, and dueAt are required' });
   }
 
-  db.prepare(
-    `INSERT INTO tasks (id, user_id, title, subject, due_at, completed, reminder_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       title = excluded.title,
-       subject = excluded.subject,
-       due_at = excluded.due_at,
-       completed = excluded.completed,
-       reminder_at = excluded.reminder_at`,
-  ).run(id || crypto.randomUUID(), userId, title, subject || 'General', dueAt, completed ? 1 : 0, reminderAt);
+  const taskId = id || randomUUID();
+  await store.upsertTask({
+    id: taskId,
+    userId,
+    title,
+    subject: subject || 'General',
+    dueAt,
+    completed: completed === true,
+    reminderAt: reminderAt || null,
+    priority: typeof priority === 'string' ? priority : 'medium',
+  });
 
-  response.status(201).json({ id, success: true });
-});
+  response.status(201).json({ id: taskId, success: true });
+}));
 
-app.delete('/api/tasks/:id', (request, response) => {
-  db.prepare('DELETE FROM tasks WHERE id = ?').run(request.params.id);
+app.delete('/api/tasks/:id', asyncHandler(async (request, response) => {
+  await store.deleteTask(String(request.params.id || ''));
   response.status(204).send();
-});
+}));
 
 app.post(
   '/api/ai/chat',
@@ -469,59 +374,77 @@ app.post('/api/ai/agent/stream', async (request, response) => {
 
 app.use((error, _request, response, _next) => {
   logger.error('http.unhandled_error', { error: error.message, stack: error.stack });
-  response.status(500).json({ error: 'Internal server error' });
+  const status = Number.isInteger(error?.status) ? error.status : 500;
+  response.status(status).json({ error: error.message || 'Internal server error' });
 });
 
-app.listen(port, () => {
-  logger.info('server.started', {
-    port,
-    env: process.env.NODE_ENV || 'development',
-    llmProvider: process.env.LLM_PROVIDER || 'mock',
-    llmModel: process.env.GEMINI_MODEL || process.env.LLM_MODEL || '(none)',
-    llmTimeoutMs: Number(process.env.LLM_TIMEOUT_MS || process.env.LLM_REQUEST_TIMEOUT_MS || 30_000),
-    logLevel: process.env.LOG_LEVEL || 'info',
+startServer();
+
+async function startServer() {
+  try {
+    await seedScheduleIfEmpty();
+    const activePort = await listenWithRetry(port);
+    logger.info('server.started', {
+      port: activePort,
+      env: process.env.NODE_ENV || 'development',
+      llmProvider: process.env.LLM_PROVIDER || 'mock',
+      llmModel: process.env.GEMINI_MODEL || process.env.LLM_MODEL || '(none)',
+      llmTimeoutMs: Number(process.env.LLM_TIMEOUT_MS || process.env.LLM_REQUEST_TIMEOUT_MS || 30_000),
+      logLevel: process.env.LOG_LEVEL || 'info',
+    });
+  } catch (error) {
+    logger.error('server.bootstrap.failed', {
+      error: error.message,
+      stack: error.stack,
+    });
+
+    // node --watch can crash on Windows when exiting immediately from bootstrap.
+    // Keep process alive so watch mode can recover on file or env changes.
+    const isWatchMode = process.execArgv.includes('--watch');
+    if (isWatchMode) {
+      logger.warn('server.bootstrap.watch_mode_waiting_for_changes');
+      process.exitCode = 1;
+      return;
+    }
+
+    process.exit(1);
+  }
+}
+
+async function listenWithRetry(initialPort) {
+  const env = process.env.NODE_ENV || 'development';
+  const maxRetries = env === 'development' ? 10 : 0;
+  let activePort = initialPort;
+  let attempts = 0;
+
+  while (true) {
+    try {
+      await listenOnce(activePort);
+      return activePort;
+    } catch (error) {
+      if (error?.code === 'EADDRINUSE' && attempts < maxRetries) {
+        logger.warn('server.port_in_use_retrying', {
+          attemptedPort: activePort,
+          nextPort: activePort + 1,
+        });
+        activePort += 1;
+        attempts += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+function listenOnce(targetPort) {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(targetPort);
+    server.once('listening', resolve);
+    server.once('error', (error) => {
+      server.removeAllListeners('listening');
+      reject(error);
+    });
   });
-});
-
-function initializeDatabase() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      full_name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      cin TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS schedule_sessions (
-      id TEXT PRIMARY KEY,
-      day_index INTEGER NOT NULL CHECK (day_index BETWEEN 0 AND 5),
-      title TEXT NOT NULL,
-      room TEXT NOT NULL,
-      teacher TEXT NOT NULL,
-      color_hex TEXT NOT NULL,
-      start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS tasks (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      due_at TEXT NOT NULL,
-      completed INTEGER NOT NULL DEFAULT 0,
-      reminder_at TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_tasks_user_due
-    ON tasks(user_id, due_at);
-
-    CREATE INDEX IF NOT EXISTS idx_schedule_sessions_day_time
-    ON schedule_sessions(day_index, start_time);
-  `);
 }
 
 function validateAuthRequest(body) {
@@ -656,10 +579,6 @@ function validatePasswordChangeRequest(body) {
   };
 }
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(`studyflow-local:${password}`).digest('hex');
-}
-
 function toApiUser(user) {
   return {
     id: user.id,
@@ -669,44 +588,43 @@ function toApiUser(user) {
   };
 }
 
-function seedScheduleIfEmpty() {
-  const { count } = db.prepare('SELECT COUNT(*) AS count FROM schedule_sessions').get();
-  if (count > 0) {
-    return;
-  }
-
+async function seedScheduleIfEmpty() {
   const seedPath = path.join(__dirname, '..', 'data', 'schedule.seed.json');
   const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
-  const insert = db.prepare(
-    `INSERT INTO schedule_sessions
-      (id, day_index, title, room, teacher, color_hex, start_time, end_time)
-     VALUES
-      (@id, @dayIndex, @title, @room, @teacher, @colorHex, @startTime, @endTime)`,
-  );
-
-  const transaction = db.transaction((sessions) => {
-    for (const session of sessions) {
-      const validation = validateSession(session);
-      if (!validation.ok) {
-        throw new Error(`Invalid seed session ${session.id}: ${validation.error}`);
-      }
-      insert.run(validation.value);
+  const sessions = [];
+  for (const session of seed) {
+    const validation = validateSession(session);
+    if (!validation.ok) {
+      throw new Error(`Invalid seed session ${session.id}: ${validation.error}`);
     }
-  });
+    sessions.push(validation.value);
+  }
 
-  transaction(seed);
+  await store.seedScheduleIfEmpty(sessions);
 }
 
 function toApiSession(row) {
   return {
     id: row.id,
-    dayIndex: row.day_index,
+    dayIndex: row.dayIndex,
     title: row.title,
     room: row.room,
     teacher: row.teacher,
-    colorHex: row.color_hex,
-    startTime: row.start_time,
-    endTime: row.end_time,
+    colorHex: row.colorHex,
+    startTime: row.startTime,
+    endTime: row.endTime,
+  };
+}
+
+function toApiTask(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    subject: row.subject,
+    dueAt: row.dueAt,
+    completed: row.completed === true,
+    priority: row.priority || 'medium',
+    reminderAt: row.reminderAt,
   };
 }
 

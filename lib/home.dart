@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'domain/models/schedule_session.dart';
 import 'domain/repositories/schedule_repository.dart';
-import 'data/tasks/local_task_repository.dart';
+import 'domain/repositories/task_repository.dart';
 
 // --- CONFIGURATION DES SUGGESTIONS ---
 const List<String> suggestedPrompts = [
@@ -31,7 +31,7 @@ class HomePage extends StatefulWidget {
   });
 
   final ScheduleRepository scheduleRepository;
-  final LocalTaskRepository taskRepository;
+  final TaskRepository taskRepository;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -42,7 +42,6 @@ class _HomePageState extends State<HomePage> {
   String _lastPrompt = 'No message sent yet';
   ScheduleSession? _nextSession;
   int _pendingTasksCount = 0;
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -57,20 +56,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
     try {
       final now = DateTime.now();
       final sessions = await widget.scheduleRepository.getWeeklySchedule();
-      final todaySessions = sessions.where((s) => s.dayIndex == now.weekday - 1).toList();
+      final todaySessions = sessions
+          .where((s) => s.dayIndex == now.weekday - 1)
+          .toList();
       todaySessions.sort((a, b) => a.start.compareTo(b.start));
-      
+
       final next = todaySessions.firstWhere(
         (s) => s.startsAfter(now),
         orElse: () => todaySessions.firstWhere(
           (s) => s.isCurrentAt(now),
           orElse: () => sessions.firstWhere(
             (s) => s.dayIndex > (now.weekday - 1),
-            orElse: () => sessions.isNotEmpty ? sessions.first : todaySessions.first, // Fallback
+            orElse: () => sessions.isNotEmpty
+                ? sessions.first
+                : todaySessions.first, // Fallback
           ),
         ),
       );
@@ -82,14 +84,9 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _nextSession = next;
           _pendingTasksCount = pendingCount;
-          _isLoading = false;
         });
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    } catch (_) {}
   }
 
   void _submitPrompt() {
@@ -113,151 +110,190 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
+    final width = MediaQuery.sizeOf(context).width;
     final isCompact = width < 390;
 
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(
-            isCompact ? 16 : 20,
-            18,
-            isCompact ? 16 : 20,
-            110, // Padding pour le BottomNav
-          ),
-          children: [
-            // 1. --- HEADER AVEC AVATAR ---
-            Container(
-              padding: const EdgeInsets.only(left: 24, right: 24, top: 40, bottom: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-                    Theme.of(context).scaffoldBackgroundColor,
-                  ],
-                ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                isCompact ? 14 : 20,
+                18,
+                isCompact ? 14 : 20,
+                110, // Padding pour le BottomNav
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. --- HEADER AVEC AVATAR ---
+                Container(
+                  padding: EdgeInsets.fromLTRB(
+                    isCompact ? 12 : 24,
+                    isCompact ? 18 : 40,
+                    isCompact ? 12 : 24,
+                    20,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.05),
+                        Theme.of(context).scaffoldBackgroundColor,
+                      ],
+                    ),
+                  ),
+                  child: Row(
                     children: [
-                      Text(
-                        'Welcome Back!',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Yassine Belhaj Ali',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          letterSpacing: -0.5,
-                          shadows: [
-                            Shadow(
-                              color: Theme.of(context).shadowColor.withValues(alpha: 0.05),
-                              offset: const Offset(0, 2),
-                              blurRadius: 4,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Welcome Back!',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.userName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: isCompact ? 24 : 28,
+                                fontWeight: FontWeight.w900,
+                                color: Theme.of(context).colorScheme.onSurface,
+                                letterSpacing: -0.5,
+                                shadows: [
+                                  Shadow(
+                                    color: Theme.of(
+                                      context,
+                                    ).shadowColor.withValues(alpha: 0.05),
+                                    offset: const Offset(0, 2),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      _buildNotificationButton(),
                     ],
                   ),
-                  _buildNotificationButton(),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-            Divider(color: Theme.of(context).colorScheme.outlineVariant, height: 1),
-            const SizedBox(height: 20),
-
-            // 2. --- AI ASSISTANT SECTION (DESIGN ORIGINAL COMPLEXE) ---
-            _buildFullAICard(isCompact),
-
-            const SizedBox(height: 20),
-
-            // 3. --- QUICK INFO CARDS ---
-            Row(
-              children: [
-                Expanded(
-                  child: _QuickInfoCard(
-                    icon: Icons.calendar_month_rounded,
-                    iconColor: Theme.of(context).colorScheme.primary,
-                    title: 'Next Class',
-                    line1: _nextSession?.displayTitle ?? 'No classes',
-                    line2: _nextSession != null 
-                        ? '${_formatDuration(_nextSession!.start)} - ${_nextSession!.room}'
-                        : 'Enjoy your day!',
-                    onTap: () => widget.onNavigate('emploi'),
-                  ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _QuickInfoCard(
-                    icon: Icons.check_circle_rounded,
-                    iconColor: const Color(0xFF10B981),
-                    title: 'Tasks',
-                    line1: '$_pendingTasksCount tasks',
-                    line2: 'remaining today',
-                    largeStat: true,
-                    onTap: () => widget.onNavigate('tasks'),
-                  ),
+
+                const SizedBox(height: 20),
+                Divider(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  height: 1,
                 ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: _QuickInfoCard(
-                    icon: Icons.tips_and_updates_rounded,
-                    iconColor: Color(0xFFF59E0B),
-                    title: 'Study Tip',
-                    line1: 'Active Recall',
-                    line2: 'Try flashcards',
-                  ),
+                const SizedBox(height: 20),
+
+                // 2. --- AI ASSISTANT SECTION (DESIGN ORIGINAL COMPLEXE) ---
+                _buildFullAICard(isCompact),
+
+                const SizedBox(height: 20),
+
+                // 3. --- QUICK INFO CARDS ---
+                _buildQuickInfoCards(),
+
+                const SizedBox(height: 18),
+
+                // 4. --- TODAY'S SCHEDULE ---
+                _buildScheduleSection(),
+
+                const SizedBox(height: 15),
+
+                // 5. --- LAST PROMPT HISTORY ---
+                _buildLastPromptCard(),
+
+                const SizedBox(height: 20),
+
+                // 6. --- PAGER DOTS ---
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _PagerDot(active: false),
+                    SizedBox(width: 8),
+                    _PagerDot(active: false),
+                    SizedBox(width: 8),
+                    _PagerDot(active: true),
+                  ],
                 ),
               ],
             ),
-
-            const SizedBox(height: 18),
-
-            // 4. --- TODAY'S SCHEDULE ---
-            _buildScheduleSection(),
-
-            const SizedBox(height: 15),
-
-            // 5. --- LAST PROMPT HISTORY ---
-            _buildLastPromptCard(),
-
-            const SizedBox(height: 20),
-
-            // 6. --- PAGER DOTS ---
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _PagerDot(active: false),
-                SizedBox(width: 8),
-                _PagerDot(active: false),
-                SizedBox(width: 8),
-                _PagerDot(active: true),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  // --- WIDGETS DE CONSTRUCTION DÉTAILLÉS ---
+  Widget _buildQuickInfoCards() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final columns = maxWidth < 500 ? 1 : 3;
+        final spacing = maxWidth < 500 ? 10.0 : 12.0;
+        final cardWidth = (maxWidth - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            SizedBox(
+              width: cardWidth,
+              child: _QuickInfoCard(
+                icon: Icons.calendar_month_rounded,
+                iconColor: Theme.of(context).colorScheme.primary,
+                title: 'Next Class',
+                line1: _nextSession?.displayTitle ?? 'No classes',
+                line2: _nextSession != null
+                    ? '${_formatDuration(_nextSession!.start)} - ${_nextSession!.room}'
+                    : 'Enjoy your day!',
+                onTap: () => widget.onNavigate('emploi'),
+              ),
+            ),
+            SizedBox(
+              width: cardWidth,
+              child: _QuickInfoCard(
+                icon: Icons.check_circle_rounded,
+                iconColor: const Color(0xFF10B981),
+                title: 'Tasks',
+                line1: '$_pendingTasksCount tasks',
+                line2: 'remaining today',
+                largeStat: true,
+                onTap: () => widget.onNavigate('tasks'),
+              ),
+            ),
+            SizedBox(
+              width: cardWidth,
+              child: const _QuickInfoCard(
+                icon: Icons.tips_and_updates_rounded,
+                iconColor: Color(0xFFF59E0B),
+                title: 'Study Tip',
+                line1: 'Active Recall',
+                line2: 'Try flashcards',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- WIDGETS DE CONSTRUCTION DÃ‰TAILLÃ‰S ---
 
   Widget _buildNotificationButton() {
     return GestureDetector(
@@ -272,10 +308,16 @@ class _HomePageState extends State<HomePage> {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Theme.of(context).colorScheme.surface, Theme.of(context).colorScheme.surfaceContainerHighest],
+                colors: [
+                  Theme.of(context).colorScheme.surface,
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+                ],
               ),
               borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant, width: 1.5),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1.5,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
@@ -299,7 +341,10 @@ class _HomePageState extends State<HomePage> {
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.error,
                 shape: BoxShape.circle,
-                border: Border.all(color: Theme.of(context).colorScheme.surface, width: 1.5),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.surface,
+                  width: 1.5,
+                ),
               ),
             ),
           ),
@@ -310,15 +355,21 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildFullAICard(bool isCompact) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isCompact ? 16 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.secondaryContainer, Theme.of(context).colorScheme.tertiaryContainer],
+          colors: [
+            Theme.of(context).colorScheme.primaryContainer,
+            Theme.of(context).colorScheme.secondaryContainer,
+            Theme.of(context).colorScheme.tertiaryContainer,
+          ],
         ),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8)),
+        borderRadius: BorderRadius.circular(isCompact ? 24 : 32),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+        ),
         boxShadow: [
           BoxShadow(
             color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
@@ -334,9 +385,10 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 18),
           Text(
             'AI Study Assistant',
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurface,
-              fontSize: 22,
+              fontSize: isCompact ? 20 : 22,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
             ),
@@ -348,12 +400,12 @@ class _HomePageState extends State<HomePage> {
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w500,
-              fontSize: 14,
+              fontSize: isCompact ? 13 : 14,
             ),
           ),
           const SizedBox(height: 20),
           // Input
-          _buildAIInput(),
+          _buildAIInput(isCompact),
           const SizedBox(height: 10),
           TextButton.icon(
             onPressed: widget.onOpenChat,
@@ -376,16 +428,21 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAIIllustration(bool isCompact) {
+    final robotSize = isCompact ? 132.0 : 160.0;
+
     return SizedBox(
       width: double.infinity,
-      height: isCompact ? 150 : 165,
-      child: const Center(child: _AssistantRobotIcon()),
+      height: isCompact ? 138 : 170,
+      child: Center(child: _AssistantRobotIcon(size: robotSize)),
     );
   }
 
-  Widget _buildAIInput() {
+  Widget _buildAIInput(bool isCompact) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 12 : 16,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
@@ -409,7 +466,11 @@ class _HomePageState extends State<HomePage> {
               decoration: InputDecoration(
                 hintText: 'Type your question...',
                 border: InputBorder.none,
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                hintStyle: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
               ),
               onSubmitted: (_) => _submitPrompt(),
             ),
@@ -417,17 +478,20 @@ class _HomePageState extends State<HomePage> {
           GestureDetector(
             onTap: _submitPrompt,
             child: Container(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(isCompact ? 9 : 10),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary],
+                  colors: [
+                    Theme.of(context).colorScheme.primary,
+                    Theme.of(context).colorScheme.primary,
+                  ],
                 ),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
                 Icons.send_rounded,
                 color: Theme.of(context).colorScheme.surface,
-                size: 20,
+                size: isCompact ? 18 : 20,
               ),
             ),
           ),
@@ -445,7 +509,9 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         child: Text(
           text,
@@ -461,7 +527,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildScheduleSection() {
     if (_nextSession == null) return const SizedBox.shrink();
-    
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,12 +539,14 @@ class _HomePageState extends State<HomePage> {
                 color: Color(0xFFF97316),
               ),
               SizedBox(width: 10),
-              Text(
-                'Next Session',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 16,
+              Expanded(
+                child: Text(
+                  'Next Session',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ],
@@ -519,7 +587,9 @@ class _HomePageState extends State<HomePage> {
               Icon(
                 Icons.history_rounded,
                 size: 16,
-                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -545,13 +615,16 @@ class _HomePageState extends State<HomePage> {
 // --- WIDGETS DE SUPPORT (PIXEL PERFECT) ---
 
 class _AssistantRobotIcon extends StatefulWidget {
-  const _AssistantRobotIcon();
+  const _AssistantRobotIcon({required this.size});
+
+  final double size;
 
   @override
   State<_AssistantRobotIcon> createState() => _AssistantRobotIconState();
 }
 
-class _AssistantRobotIconState extends State<_AssistantRobotIcon> with SingleTickerProviderStateMixin {
+class _AssistantRobotIconState extends State<_AssistantRobotIcon>
+    with SingleTickerProviderStateMixin {
   late VideoPlayerController _controller;
   late AnimationController _floatController;
   late Animation<double> _floatAnimation;
@@ -604,12 +677,14 @@ class _AssistantRobotIconState extends State<_AssistantRobotIcon> with SingleTic
             );
           },
           child: Container(
-            width: 160, // Made it big, but safe for the text
-            height: 160,
+            width: widget.size,
+            height: widget.size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 width: 4,
               ),
               boxShadow: [
@@ -620,14 +695,14 @@ class _AssistantRobotIconState extends State<_AssistantRobotIcon> with SingleTic
                 ),
               ],
             ),
-            child: ClipOval( // Perfectly crops the video into a circle
+            child: ClipOval(
               child: _controller.value.isInitialized
-                  ? Transform.scale(
-                      scale: 1.9, // Keeps the zoom to hide UI
-                      child: Transform.translate(
-                        offset: const Offset(-12, 12), // Shifted less left and a bit more down to perfectly center the robot in the circle
-                        child: AspectRatio(
-                          aspectRatio: _controller.value.aspectRatio,
+                  ? SizedBox.expand(
+                      child: FittedBox(
+                        fit: BoxFit.cover,
+                        child: SizedBox(
+                          width: _controller.value.size.width,
+                          height: _controller.value.size.height,
                           child: VideoPlayer(_controller),
                         ),
                       ),
@@ -635,9 +710,11 @@ class _AssistantRobotIconState extends State<_AssistantRobotIcon> with SingleTic
                   : Container(
                       color: Theme.of(context).colorScheme.surface,
                       child: Icon(
-                        Icons.smart_toy_rounded, 
-                        size: 80, 
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                        Icons.smart_toy_rounded,
+                        size: widget.size * 0.5,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.8),
                       ),
                     ),
             ),
@@ -647,7 +724,7 @@ class _AssistantRobotIconState extends State<_AssistantRobotIcon> with SingleTic
         // Floating Stars for premium AI feel
         Positioned(
           top: -5,
-          right: -10,
+          right: -6,
           child: AnimatedBuilder(
             animation: _floatAnimation,
             builder: (context, child) {
@@ -656,12 +733,16 @@ class _AssistantRobotIconState extends State<_AssistantRobotIcon> with SingleTic
                 child: child,
               );
             },
-            child: Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.surface, size: 24),
+            child: Icon(
+              Icons.auto_awesome,
+              color: Theme.of(context).colorScheme.surface,
+              size: widget.size * 0.15,
+            ),
           ),
         ),
         Positioned(
-          bottom: 15,
-          left: -5,
+          bottom: widget.size * 0.1,
+          left: -4,
           child: AnimatedBuilder(
             animation: _floatAnimation,
             builder: (context, child) {
@@ -670,7 +751,11 @@ class _AssistantRobotIconState extends State<_AssistantRobotIcon> with SingleTic
                 child: child,
               );
             },
-            child: Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.surface, size: 16),
+            child: Icon(
+              Icons.auto_awesome,
+              color: Theme.of(context).colorScheme.surface,
+              size: widget.size * 0.1,
+            ),
           ),
         ),
       ],
@@ -701,7 +786,9 @@ class AppCard extends StatelessWidget {
             offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.2)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.2),
+        ),
       ),
       child: child,
     );
@@ -730,47 +817,71 @@ class _QuickInfoCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 104),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              child: Icon(icon, color: iconColor, size: 18),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              const SizedBox(height: 8),
+              Text(
+                line1,
+                maxLines: largeStat ? 1 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: largeStat ? 15 : 13,
+                  fontWeight: FontWeight.w900,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  height: 1.2,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              line1,
-              style: TextStyle(
-                fontSize: largeStat ? 14 : 12,
-                fontWeight: FontWeight.w900,
-                color: Theme.of(context).colorScheme.onSurface,
+              const SizedBox(height: 3),
+              Text(
+                line2,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
               ),
-            ),
-            Text(
-              line2,
-              style: TextStyle(fontSize: 9, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -817,6 +928,8 @@ class _ScheduleRow extends StatelessWidget {
             children: [
               Text(
                 title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   color: Theme.of(context).colorScheme.onSurface,
@@ -825,6 +938,8 @@ class _ScheduleRow extends StatelessWidget {
               ),
               Text(
                 subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -866,7 +981,9 @@ class _PagerDot extends StatelessWidget {
       width: active ? 22 : 8,
       height: 8,
       decoration: BoxDecoration(
-        color: active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline,
+        color: active
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.outline,
         borderRadius: BorderRadius.circular(4),
       ),
     );

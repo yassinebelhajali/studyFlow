@@ -77,43 +77,45 @@ class _SchedulePageState extends State<SchedulePage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = screenWidth >= 600;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: const Color(0xFFEDEDF2),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2563EB),
+        backgroundColor: const Color(0xFF2F9AE7),
+        surfaceTintColor: const Color(0xFF2F9AE7),
         foregroundColor: Colors.white,
-        toolbarHeight: 86,
-        titleSpacing: 20,
-        title: const Column(
+        toolbarHeight: isWide ? 112 : 94,
+        titleSpacing: isWide ? 22 : 16,
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.event_note_rounded),
-                SizedBox(width: 10),
+                Icon(Icons.calendar_month_rounded, size: isWide ? 32 : 26),
+                SizedBox(width: isWide ? 12 : 10),
                 Text(
                   'Emploi du Temps',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    fontSize: isWide ? 30 : 22,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: 4),
+            SizedBox(height: isWide ? 7 : 4),
             Text(
-              'Weekly classes, rooms, teachers, and conflicts',
+              'Your weekly schedule',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, color: Colors.white70),
+              style: TextStyle(
+                fontSize: isWide ? 14 : 12,
+                color: Colors.white70,
+              ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh schedule',
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: FutureBuilder<List<ScheduleSession>>(
         future: _sessionsFuture,
@@ -171,27 +173,15 @@ class _ScheduleContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sessionsByDay = _groupSessionsByDay(sessions);
-    final selectedSessions = sessionsByDay[selectedDayIndex];
-    final now = DateTime.now();
-    final currentSession = _currentSession(sessions, now);
-    final nextSession = _nextSession(selectedSessions, now);
 
     return Column(
       children: [
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         _DaySelector(
-          sessionsByDay: sessionsByDay,
           selectedDayIndex: selectedDayIndex,
           onDaySelected: onDaySelected,
         ),
-        const SizedBox(height: 12),
-        _DaySummary(
-          dayName: scheduleDayNames[selectedDayIndex],
-          sessions: selectedSessions,
-          currentSession: currentSession,
-          nextSession: nextSession,
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 14),
         Expanded(
           child: PageView.builder(
             controller: pageController,
@@ -201,11 +191,7 @@ class _ScheduleContent extends StatelessWidget {
               final daySessions = sessionsByDay[dayIndex];
               return RefreshIndicator(
                 onRefresh: onRefresh,
-                child: _DayScheduleList(
-                  sessions: daySessions,
-                  currentSession: currentSession,
-                  nextSession: _nextSession(daySessions, now),
-                ),
+                child: _DayScheduleList(sessions: daySessions),
               );
             },
           ),
@@ -233,59 +219,36 @@ class _ScheduleContent extends StatelessWidget {
 
     return grouped;
   }
-
-  static ScheduleSession? _currentSession(
-    List<ScheduleSession> sessions,
-    DateTime now,
-  ) {
-    for (final session in sessions) {
-      if (session.isCurrentAt(now)) {
-        return session;
-      }
-    }
-    return null;
-  }
-
-  static ScheduleSession? _nextSession(
-    List<ScheduleSession> sessions,
-    DateTime now,
-  ) {
-    for (final session in sessions) {
-      if (session.startsAfter(now)) {
-        return session;
-      }
-    }
-    return null;
-  }
 }
 
 class _DaySelector extends StatelessWidget {
   const _DaySelector({
-    required this.sessionsByDay,
     required this.selectedDayIndex,
     required this.onDaySelected,
   });
 
-  final List<List<ScheduleSession>> sessionsByDay;
   final int selectedDayIndex;
   final ValueChanged<int> onDaySelected;
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = screenWidth >= 600;
+
     return SizedBox(
-      height: 54,
+      height: isWide ? 66 : 58,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.symmetric(horizontal: isWide ? 16 : 14),
         scrollDirection: Axis.horizontal,
         itemCount: scheduleDayLabels.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => SizedBox(width: isWide ? 10 : 8),
         itemBuilder: (context, index) {
           final selected = selectedDayIndex == index;
           return _DayChip(
             label: scheduleDayLabels[index],
-            count: sessionsByDay[index].length,
             selected: selected,
             onTap: () => onDaySelected(index),
+            compact: !isWide,
           );
         },
       ),
@@ -296,325 +259,226 @@ class _DaySelector extends StatelessWidget {
 class _DayChip extends StatelessWidget {
   const _DayChip({
     required this.label,
-    required this.count,
     required this.selected,
     required this.onTap,
+    required this.compact,
   });
 
   final String label;
-  final int count;
   final bool selected;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(24),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 64,
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        duration: const Duration(milliseconds: 220),
+        width: compact ? 78 : 90,
+        height: compact ? 46 : 52,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF2563EB) : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: selected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0F172033),
-              blurRadius: 10,
-              offset: Offset(0, 4),
-            ),
-          ],
+          color: selected ? const Color(0xFF2D6CDF) : const Color(0xFFF2F2F5),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: selected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x332D6CDF),
+                    blurRadius: 14,
+                    offset: Offset(0, 6),
+                  ),
+                ]
+              : null,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : const Color(0xFF1E293B),
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '$count',
-              style: TextStyle(
-                color: selected ? Colors.white70 : const Color(0xFF64748B),
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : const Color(0xFF111111),
+            fontWeight: FontWeight.w800,
+            fontSize: compact ? 14 : 16,
+            letterSpacing: -0.2,
+          ),
         ),
       ),
     );
-  }
-}
-
-class _DaySummary extends StatelessWidget {
-  const _DaySummary({
-    required this.dayName,
-    required this.sessions,
-    required this.currentSession,
-    required this.nextSession,
-  });
-
-  final String dayName;
-  final List<ScheduleSession> sessions;
-  final ScheduleSession? currentSession;
-  final ScheduleSession? nextSession;
-
-  @override
-  Widget build(BuildContext context) {
-    final conflicts = _countConflicts(sessions);
-    final status = currentSession != null
-        ? 'Now: ${currentSession!.displayTitle}'
-        : nextSession != null
-        ? 'Next: ${nextSession!.displayTitle}'
-        : 'No more classes today';
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.calendar_today_rounded,
-              color: Color(0xFF2563EB),
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$dayName • ${sessions.length} classes',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF1E293B),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  status,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (conflicts > 0) ...[
-            const SizedBox(width: 8),
-            _StatusPill(
-              label: '$conflicts overlap',
-              icon: Icons.warning_amber_rounded,
-              color: const Color(0xFFEA580C),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  int _countConflicts(List<ScheduleSession> sessions) {
-    var count = 0;
-    for (var index = 0; index < sessions.length; index++) {
-      final current = sessions[index];
-      final hasConflict = sessions.any(current.overlaps);
-      if (hasConflict) {
-        count++;
-      }
-    }
-    return count;
   }
 }
 
 class _DayScheduleList extends StatelessWidget {
-  const _DayScheduleList({
-    required this.sessions,
-    required this.currentSession,
-    required this.nextSession,
-  });
+  const _DayScheduleList({required this.sessions});
 
   final List<ScheduleSession> sessions;
-  final ScheduleSession? currentSession;
-  final ScheduleSession? nextSession;
 
   @override
   Widget build(BuildContext context) {
     if (sessions.isEmpty) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 48, 20, 120),
+        padding: const EdgeInsets.fromLTRB(20, 56, 20, 120),
         children: const [_EmptyScheduleState()],
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(14, 6, 16, 120),
       itemCount: sessions.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final session = sessions[index];
-        final hasConflict = sessions.any(session.overlaps);
-        return _SessionCard(
+        return _TimelineSessionRow(
           session: session,
-          isCurrent: currentSession?.id == session.id,
-          isNext: nextSession?.id == session.id,
-          hasConflict: hasConflict,
+          isFirst: index == 0,
+          isLast: index == sessions.length - 1,
         );
       },
     );
   }
 }
 
-class _SessionCard extends StatelessWidget {
-  const _SessionCard({
+class _TimelineSessionRow extends StatelessWidget {
+  const _TimelineSessionRow({
     required this.session,
-    required this.isCurrent,
-    required this.isNext,
-    required this.hasConflict,
+    required this.isFirst,
+    required this.isLast,
   });
 
   final ScheduleSession session;
-  final bool isCurrent;
-  final bool isNext;
-  final bool hasConflict;
+  final bool isFirst;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
     final accent = Color(session.colorValue);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final compact = screenWidth < 600;
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isCurrent
-              ? accent.withValues(alpha: 0.45)
-              : const Color(0xFFE2E8F0),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isCurrent
-                ? accent.withValues(alpha: 0.18)
-                : const Color(0x0F172033),
-            blurRadius: isCurrent ? 18 : 10,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(width: 5, color: accent),
-            Expanded(
+            SizedBox(
+              width: compact ? 68 : 76,
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _formatTime(session.start),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: compact ? 17 : 21,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 22,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Container(
+                      width: 3,
+                      color: isFirst
+                          ? Colors.transparent
+                          : const Color(0xFFD4D5DA),
+                    ),
+                  ),
+                  Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      width: 3,
+                      color: isLast
+                          ? Colors.transparent
+                          : const Color(0xFFD4D5DA),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x17000000),
+                      blurRadius: 12,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    Text(
+                      session.displayTitle,
+                      style: TextStyle(
+                        color: Color(0xFF111111),
+                        fontSize: compact ? 16 : 19,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _TimeBadge(
-                          start: _formatTime(session.start),
-                          end: _formatTime(session.end),
-                          color: accent,
+                        Icon(
+                          Icons.location_on_outlined,
+                          color: const Color(0xFF6E6E72),
+                          size: compact ? 22 : 26,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: [
-                                  _StatusPill(
-                                    label: session.category,
-                                    icon: Icons.school_rounded,
-                                    color: accent,
-                                  ),
-                                  if (isCurrent)
-                                    _StatusPill(
-                                      label: 'Now',
-                                      icon: Icons.play_circle_rounded,
-                                      color: const Color(0xFF16A34A),
-                                    ),
-                                  if (isNext)
-                                    _StatusPill(
-                                      label: 'Next',
-                                      icon: Icons.arrow_forward_rounded,
-                                      color: const Color(0xFF2563EB),
-                                    ),
-                                  if (hasConflict)
-                                    _StatusPill(
-                                      label: 'Overlap',
-                                      icon: Icons.warning_amber_rounded,
-                                      color: const Color(0xFFEA580C),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                session.displayTitle,
-                                style: const TextStyle(
-                                  color: Color(0xFF0F172A),
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.25,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            session.room,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Color(0xFF6E6E72),
+                              fontSize: compact ? 14 : 17,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
+                    const SizedBox(height: 6),
+                    Row(
                       children: [
-                        _SessionMeta(
-                          icon: Icons.location_on_outlined,
-                          label: session.room,
+                        Icon(
+                          Icons.person_outline_rounded,
+                          color: const Color(0xFF6E6E72),
+                          size: compact ? 22 : 26,
                         ),
-                        _SessionMeta(
-                          icon: Icons.person_outline_rounded,
-                          label: session.teacher,
-                        ),
-                        _SessionMeta(
-                          icon: Icons.timer_outlined,
-                          label: _formatDuration(session.duration),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            session.teacher,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Color(0xFF6E6E72),
+                              fontSize: compact ? 14 : 17,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -625,119 +489,6 @@ class _SessionCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _TimeBadge extends StatelessWidget {
-  const _TimeBadge({
-    required this.start,
-    required this.end,
-    required this.color,
-  });
-
-  final String start;
-  final String end;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Text(
-            start,
-            style: TextStyle(
-              color: color,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            end,
-            style: TextStyle(
-              color: color.withValues(alpha: 0.82),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.label,
-    required this.icon,
-    required this.color,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SessionMeta extends StatelessWidget {
-  const _SessionMeta({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: const Color(0xFF64748B)),
-        const SizedBox(width: 5),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 230),
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF475569),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -832,16 +583,4 @@ String _formatTime(Duration value) {
   final hours = value.inHours.toString().padLeft(2, '0');
   final minutes = (value.inMinutes % 60).toString().padLeft(2, '0');
   return '$hours:$minutes';
-}
-
-String _formatDuration(Duration value) {
-  final hours = value.inHours;
-  final minutes = value.inMinutes % 60;
-  if (hours == 0) {
-    return '${minutes}m';
-  }
-  if (minutes == 0) {
-    return '${hours}h';
-  }
-  return '${hours}h ${minutes}m';
 }

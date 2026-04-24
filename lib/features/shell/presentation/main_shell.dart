@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -9,12 +10,12 @@ import '../../../data/ai/ai_memory_store.dart';
 import '../../../data/ai/study_chat_repository.dart';
 import '../../../data/notifications/local_notification_settings_store.dart';
 import '../../../data/profile/local_profile_repository.dart';
-import '../../../data/tasks/local_task_repository.dart';
 import '../../../core/navigation/app_transitions.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/course_repository.dart';
 import '../../../domain/repositories/notification_repository.dart';
 import '../../../domain/repositories/schedule_repository.dart';
+import '../../../domain/repositories/task_repository.dart';
 import '../../../emploi.dart';
 import '../../ai/application/ai_tool.dart';
 import '../../ai/application/study_tools.dart';
@@ -39,6 +40,7 @@ class MainShell extends StatefulWidget {
     required this.notificationSettingsStore,
     required this.notificationScheduler,
     required this.onThemeModeChanged,
+    this.onAvatarUpload,
   });
 
   final SessionController sessionController;
@@ -46,13 +48,15 @@ class MainShell extends StatefulWidget {
   final AiBackendClient aiBackendClient;
   final AiMemoryStore aiMemoryStore;
   final bool isMockAiBackend;
-  final LocalTaskRepository taskRepository;
+  final TaskRepository taskRepository;
   final CourseRepository courseRepository;
   final NotificationRepository notificationRepository;
   final LocalProfileRepository profileRepository;
   final LocalNotificationSettingsStore notificationSettingsStore;
   final StudyNotificationScheduler notificationScheduler;
   final ValueChanged<ThemeMode> onThemeModeChanged;
+  final Future<String?> Function(Uint8List bytes, String mime, String userId)?
+  onAvatarUpload;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -60,6 +64,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  int _schedulePageResetToken = 0;
   late final ChatController _chatController;
   late final ProfileController _profileController;
 
@@ -105,6 +110,7 @@ class _MainShellState extends State<MainShell> {
               newPassword: newPassword,
             );
           },
+      onAvatarUpload: widget.onAvatarUpload,
     );
     unawaited(
       _profileController.initialize(widget.sessionController.currentUser),
@@ -126,8 +132,12 @@ class _MainShellState extends State<MainShell> {
       'cours': 3,
       'profile': 4,
     };
+    final nextIndex = pageIndex[page] ?? 0;
     setState(() {
-      _currentIndex = pageIndex[page] ?? 0;
+      _currentIndex = nextIndex;
+      if (nextIndex == 1) {
+        _schedulePageResetToken++;
+      }
     });
   }
 
@@ -173,10 +183,11 @@ class _MainShellState extends State<MainShell> {
         taskRepository: widget.taskRepository,
       ),
       SchedulePage(
+        key: ValueKey('schedule-$_schedulePageResetToken'),
         repository: widget.scheduleRepository,
         notificationScheduler: widget.notificationScheduler,
       ),
-      const TasksPage(),
+      TasksPage(repository: widget.taskRepository),
       CoursPage(repository: widget.courseRepository),
       ProfilePage(
         controller: _profileController,
@@ -191,6 +202,9 @@ class _MainShellState extends State<MainShell> {
         onTap: (index) {
           setState(() {
             _currentIndex = index;
+            if (index == 1) {
+              _schedulePageResetToken++;
+            }
           });
         },
         selectedItemColor: Colors.blue,

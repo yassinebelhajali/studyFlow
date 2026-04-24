@@ -1,16 +1,4 @@
-function createScheduleTools(db) {
-  const listByDay = db.prepare(`
-    SELECT id, day_index, title, room, teacher, color_hex, start_time, end_time
-    FROM schedule_sessions
-    WHERE day_index = ?
-    ORDER BY start_time ASC, title ASC
-  `);
-  const listWeek = db.prepare(`
-    SELECT id, day_index, title, room, teacher, color_hex, start_time, end_time
-    FROM schedule_sessions
-    ORDER BY day_index ASC, start_time ASC, title ASC
-  `);
-
+function createScheduleTools(store) {
   return [
     {
       name: 'get_today_schedule',
@@ -42,7 +30,7 @@ function createScheduleTools(db) {
           };
         }
 
-        const sessions = listByDay.all(dayIndex).map(toApiSession);
+        const sessions = await store.listScheduleByDay(dayIndex);
         return {
           success: true,
           summary:
@@ -62,7 +50,7 @@ function createScheduleTools(db) {
         return { ok: true, value: {} };
       },
       async execute() {
-        const sessions = listWeek.all().map(toApiSession);
+        const sessions = await store.listWeeklySchedule();
         return {
           success: true,
           summary: summarizeWeek(sessions),
@@ -79,19 +67,6 @@ function weekdayToScheduleIndex(now) {
     return 6;
   }
   return jsDay - 1;
-}
-
-function toApiSession(row) {
-  return {
-    id: row.id,
-    dayIndex: row.day_index,
-    title: row.title,
-    room: row.room,
-    teacher: row.teacher,
-    colorHex: row.color_hex,
-    startTime: row.start_time,
-    endTime: row.end_time,
-  };
 }
 
 function formatSession(session) {

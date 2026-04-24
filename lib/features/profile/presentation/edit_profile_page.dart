@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/validation/form_validators.dart';
 import 'profile_controller.dart';
@@ -14,6 +17,7 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   static const _initialsAvatarOption = '__initials__';
+  static const _customAvatarOption = '__custom__';
 
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
@@ -23,6 +27,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _currentPasswordController;
   late final TextEditingController _newPasswordController;
   late final TextEditingController _confirmPasswordController;
+  final _imagePicker = ImagePicker();
   late String? _avatarPath;
   bool _isSaving = false;
   bool _hideCurrentPassword = true;
@@ -242,6 +247,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Widget _buildAvatarSection() {
     final initials = _resolveInitials(_nameController.text);
+    final avatarImage = _avatarImageProvider(_avatarPath);
 
     return Column(
       children: [
@@ -252,10 +258,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
               radius: 34,
               backgroundColor: const Color(0xFF3B82F6),
               foregroundColor: Colors.white,
-              backgroundImage: _avatarPath != null
-                  ? AssetImage(_avatarPath!)
-                  : null,
-              child: _avatarPath == null
+              backgroundImage: avatarImage,
+              child: avatarImage == null
                   ? Text(
                       initials,
                       style: const TextStyle(
@@ -329,7 +333,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
         isDense: true,
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
@@ -393,7 +400,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(_initialsAvatarOption),
+                    onTap: () =>
+                        Navigator.of(context).pop(_initialsAvatarOption),
                     child: CircleAvatar(
                       radius: 32,
                       backgroundColor: const Color(0xFF3B82F6),
@@ -418,6 +426,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ],
               ),
               const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      Navigator.of(context).pop(_customAvatarOption),
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: const Text('Insert image from gallery'),
+                ),
+              ),
+              const SizedBox(height: 12),
             ],
           ),
         );
@@ -428,9 +446,78 @@ class _EditProfilePageState extends State<EditProfilePage> {
       return;
     }
 
+    if (selected == _customAvatarOption) {
+      await _pickCustomAvatar();
+      return;
+    }
+
     setState(() {
       _avatarPath = selected == _initialsAvatarOption ? null : selected;
     });
+  }
+
+  Future<void> _pickCustomAvatar() async {
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 800,
+    );
+    if (picked == null) {
+      return;
+    }
+
+    final bytes = await picked.readAsBytes();
+    if (bytes.isEmpty) {
+      return;
+    }
+
+    final mime = _mimeFromName(picked.name);
+    final encoded = base64Encode(bytes);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _avatarPath = 'data:$mime;base64,$encoded';
+    });
+  }
+
+  ImageProvider<Object>? _avatarImageProvider(String? avatarPath) {
+    if (avatarPath == null || avatarPath.isEmpty) {
+      return null;
+    }
+
+    if (avatarPath.startsWith('data:image/')) {
+      final commaIndex = avatarPath.indexOf(',');
+      if (commaIndex == -1 || commaIndex == avatarPath.length - 1) {
+        return null;
+      }
+      final rawBase64 = avatarPath.substring(commaIndex + 1);
+      try {
+        return MemoryImage(base64Decode(rawBase64));
+      } catch (_) {
+        return null;
+      }
+    }
+
+    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+      return NetworkImage(avatarPath);
+    }
+
+    return AssetImage(avatarPath);
+  }
+
+  String _mimeFromName(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) {
+      return 'image/png';
+    }
+    if (lower.endsWith('.webp')) {
+      return 'image/webp';
+    }
+    if (lower.endsWith('.gif')) {
+      return 'image/gif';
+    }
+    return 'image/jpeg';
   }
 
   Future<void> _save() async {

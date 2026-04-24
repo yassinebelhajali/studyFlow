@@ -83,9 +83,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => NotificationSettingsPage(
-                    controller: widget.controller,
-                  ),
+                  builder: (context) =>
+                      NotificationSettingsPage(controller: widget.controller),
                 ),
               );
             },
@@ -121,22 +120,25 @@ class _NotificationsPageState extends State<NotificationsPage> {
             ),
           ),
           Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _loadNotifications,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    itemCount: _notifications.length,
-                    itemBuilder: (context, index) {
-                      final item = _notifications[index];
-                      return GestureDetector(
-                        onTap: () => _markAsRead(item.id),
-                        child: _NotificationCard(item: item),
-                      );
-                    },
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _loadNotifications,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      itemCount: _notifications.length,
+                      itemBuilder: (context, index) {
+                        final item = _notifications[index];
+                        return GestureDetector(
+                          onTap: () => _markAsRead(item.id),
+                          child: _NotificationCard(item: item),
+                        );
+                      },
+                    ),
                   ),
-                ),
           ),
         ],
       ),
@@ -158,7 +160,7 @@ class _NotificationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -194,11 +196,7 @@ class _NotificationCard extends StatelessWidget {
                     color: item.color,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    item.icon,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  child: Icon(item.icon, color: Colors.white, size: 24),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

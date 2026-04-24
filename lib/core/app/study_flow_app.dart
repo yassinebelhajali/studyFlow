@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../data/ai/ai_backend_client.dart';
@@ -5,11 +7,11 @@ import '../../data/ai/ai_memory_store.dart';
 import '../../core/notifications/study_notification_scheduler.dart';
 import '../../data/notifications/local_notification_settings_store.dart';
 import '../../data/profile/local_profile_repository.dart';
-import '../../data/tasks/local_task_repository.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/course_repository.dart';
 import '../../domain/repositories/notification_repository.dart';
 import '../../domain/repositories/schedule_repository.dart';
+import '../../domain/repositories/task_repository.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/signup_page.dart';
 import '../../features/shell/presentation/main_shell.dart';
@@ -33,6 +35,7 @@ class StudyFlowApp extends StatefulWidget {
     required this.profileRepository,
     required this.notificationSettingsStore,
     required this.notificationScheduler,
+    this.onAvatarUpload,
   });
 
   final SessionController sessionController;
@@ -40,12 +43,14 @@ class StudyFlowApp extends StatefulWidget {
   final AiBackendClient aiBackendClient;
   final AiMemoryStore aiMemoryStore;
   final bool isMockAiBackend;
-  final LocalTaskRepository taskRepository;
+  final TaskRepository taskRepository;
   final CourseRepository courseRepository;
   final NotificationRepository notificationRepository;
   final LocalProfileRepository profileRepository;
   final LocalNotificationSettingsStore notificationSettingsStore;
   final StudyNotificationScheduler notificationScheduler;
+  final Future<String?> Function(Uint8List bytes, String mime, String userId)?
+  onAvatarUpload;
 
   @override
   State<StudyFlowApp> createState() => _StudyFlowAppState();
@@ -68,6 +73,7 @@ class _StudyFlowAppState extends State<StudyFlowApp> {
       notificationSettingsStore: widget.notificationSettingsStore,
       notificationScheduler: widget.notificationScheduler,
       onThemeModeChanged: _onThemeModeChanged,
+      onAvatarUpload: widget.onAvatarUpload,
     );
   }
 
@@ -97,7 +103,9 @@ class _StudyFlowAppState extends State<StudyFlowApp> {
               case AppRoutes.splash:
                 return AppTransitions.route<void>(
                   settings: settings,
-                  page: SplashScreen(sessionController: widget.sessionController),
+                  page: SplashScreen(
+                    sessionController: widget.sessionController,
+                  ),
                 );
               case AppRoutes.onboarding:
                 return AppTransitions.route<void>(
@@ -123,7 +131,9 @@ class _StudyFlowAppState extends State<StudyFlowApp> {
               default:
                 return AppTransitions.route<void>(
                   settings: settings,
-                  page: SplashScreen(sessionController: widget.sessionController),
+                  page: SplashScreen(
+                    sessionController: widget.sessionController,
+                  ),
                 );
             }
           },

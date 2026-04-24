@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
+import '../../../core/navigation/app_routes.dart';
 import '../../../core/navigation/app_transitions.dart';
 import 'edit_profile_page.dart';
 import 'help_support_page.dart';
@@ -23,10 +26,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  static const _headerGradient = [
-    Color(0xFF6366F1),
-    Color(0xFFA855F7),
-  ];
+  static const _headerGradient = [Color(0xFF6366F1), Color(0xFFA855F7)];
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,8 @@ class _ProfilePageState extends State<ProfilePage> {
       animation: widget.controller,
       builder: (context, _) {
         final identity = widget.controller.identity;
-        final avatarImage = AssetImage(identity.avatarPath ?? 'images/cc.jpg');
+        final avatarImage = _avatarImageProvider(identity.avatarPath);
+        final initials = _resolveInitials(identity.fullName);
 
         return Scaffold(
           body: SafeArea(
@@ -57,7 +58,21 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircleAvatar(radius: 42, backgroundImage: avatarImage),
+                      CircleAvatar(
+                        radius: 42,
+                        backgroundImage: avatarImage,
+                        backgroundColor: Colors.white24,
+                        foregroundColor: Colors.white,
+                        child: avatarImage == null
+                            ? Text(
+                                initials,
+                                style: const TextStyle(
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              )
+                            : null,
+                      ),
                       const SizedBox(height: 10),
                       Text(
                         identity.fullName,
@@ -200,6 +215,43 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  ImageProvider<Object>? _avatarImageProvider(String? avatarPath) {
+    if (avatarPath == null || avatarPath.isEmpty) return null;
+    if (avatarPath.startsWith('data:image/')) {
+      final commaIndex = avatarPath.indexOf(',');
+      if (commaIndex != -1 && commaIndex < avatarPath.length - 1) {
+        final rawBase64 = avatarPath.substring(commaIndex + 1);
+        try {
+          return MemoryImage(base64Decode(rawBase64));
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
+    }
+    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+      return NetworkImage(avatarPath);
+    }
+    return AssetImage(avatarPath);
+  }
+
+  String _resolveInitials(String fullName) {
+    final parts = fullName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return 'SF';
+    }
+    final first = parts.first[0].toUpperCase();
+    if (parts.length == 1) {
+      return first;
+    }
+    final second = parts.last[0].toUpperCase();
+    return '$first$second';
+  }
+
   Future<void> _confirmLogout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
@@ -228,6 +280,14 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     await widget.controller.logout();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
   }
 
   void _openPage(Widget page) {

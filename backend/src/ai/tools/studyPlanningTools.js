@@ -1,6 +1,6 @@
 const { randomUUID } = require('node:crypto');
 
-function createStudyPlanningTools(db) {
+function createStudyPlanningTools(store) {
   return [
     {
       name: 'build_study_plan',
@@ -65,23 +65,17 @@ function createStudyPlanningTools(db) {
                 : 'Work through the highest-value exercises or notes',
         }));
 
-        // Persist tasks to database
-        const insert = db.prepare(
-          `INSERT INTO tasks (id, user_id, title, subject, due_at, completed)
-           VALUES (?, ?, ?, ?, ?, 0)`
-        );
-
         const now = new Date();
-        for (const block of focusBlocks) {
-          const dueAt = new Date(now.getTime() + (focusBlocks.indexOf(block) + 1) * 3600000);
-          insert.run(
-            `task-${randomUUID()}`,
-            userId,
-            `${input.goal}: ${block.label}`,
-            input.subject || 'Study Plan',
-            dueAt.toISOString().slice(0, 16).replace('T', ' ')
-          );
-        }
+        await store.addTasks(
+          userId,
+          focusBlocks.map((block, index) => ({
+            id: `task-${randomUUID()}`,
+            title: `${input.goal}: ${block.label}`,
+            subject: input.subject || 'Study Plan',
+            dueAt: new Date(now.getTime() + (index + 1) * 3600000).toISOString(),
+            priority: input.priority === 'normal' ? 'medium' : input.priority,
+          })),
+        );
 
         return {
           success: true,
@@ -121,27 +115,33 @@ function createStudyPlanningTools(db) {
         return { ok: true, value: input };
       },
       async execute(input, { userId }) {
-        const insert = db.prepare(
-          `INSERT INTO tasks (id, user_id, title, subject, due_at, completed)
-           VALUES (?, ?, ?, ?, ?, 0)`
-        );
-
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
-
-        for (const task of input.tasks) {
-          let dueAt = task.dueAt || '18:00';
-          if (dueAt.includes(':') && !dueAt.includes('-')) {
-            dueAt = `${dateStr} ${dueAt}`;
-          }
-          insert.run(
-            `task-${randomUUID()}`,
-            userId,
-            task.title,
-            task.subject || 'General',
-            dueAt
-          );
-        }
+        await store.addTasks(
+          userId,
+          input.tasks.map((task) => {
+            let dueAt = task.dueAt || '18:00';
+            if (dueAt.includes(':') && !dueAt.includes('-')) {
+              const [hours, minutes] = dueAt.split(':').map(Number);
+              dueAt = new Date(
+                Date.UTC(
+                  now.getUTCFullYear(),
+                  now.getUTCMonth(),
+                  now.getUTCDate(),
+                  hours,
+                  minutes,
+                ),
+              ).toISOString();
+            }
+            return {
+              id: `task-${randomUUID()}`,
+              title: task.title,
+              subject: task.subject || 'General',
+              dueAt,
+              priority: 'medium',
+            };
+          }),
+        );
 
         return {
           success: true,
