@@ -39,175 +39,185 @@ class _ProfilePageState extends State<ProfilePage> {
 
         return Scaffold(
           body: SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  height: 230,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _headerGradient,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(24),
-                      bottomRight: Radius.circular(24),
-                    ),
-                  ),
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircleAvatar(
-                        radius: 42,
-                        backgroundImage: avatarImage,
-                        backgroundColor: Colors.white24,
-                        foregroundColor: Colors.white,
-                        child: avatarImage == null
-                            ? Text(
-                                initials,
-                                style: const TextStyle(
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              )
-                            : null,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        identity.fullName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        identity.email,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _StatCard(
-                        icon: Icons.menu_book,
-                        value: '10',
-                        label: 'Courses',
-                        color: Colors.blue,
-                      ),
-                      _StatCard(
-                        icon: Icons.calendar_today,
-                        value: '94%',
-                        label: 'Attendance',
-                        color: Colors.green,
-                      ),
-                      _StatCard(
-                        icon: Icons.school,
-                        value: '3.8',
-                        label: 'GPA',
-                        color: Colors.purple,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 8,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _MenuItem(
-                          icon: Icons.edit,
-                          text: 'Edit Profile',
-                          onTap: () => _openPage(
-                            EditProfilePage(controller: widget.controller),
+                      Container(
+                        height: 230,
+                        width: double.infinity,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _headerGradient,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.only(
+                            bottomLeft: Radius.circular(24),
+                            bottomRight: Radius.circular(24),
                           ),
                         ),
-                        _MenuItem(
-                          icon: Icons.notifications_none_rounded,
-                          text: 'Notifications',
-                          onTap: () => _openPage(
-                            NotificationsPage(
-                              controller: widget.controller,
-                              repository: widget.notificationRepository,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 42,
+                              backgroundImage: avatarImage,
+                              backgroundColor: Colors.white24,
+                              foregroundColor: Colors.white,
+                              child: avatarImage == null
+                                  ? Text(
+                                      initials,
+                                      style: const TextStyle(
+                                        fontSize: 30,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              identity.fullName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              identity.email,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _StatCard(
+                              icon: Icons.menu_book,
+                              value: '10',
+                              label: 'Courses',
+                              color: Colors.blue,
+                            ),
+                            _StatCard(
+                              icon: Icons.calendar_today,
+                              value: '94%',
+                              label: 'Attendance',
+                              color: Colors.green,
+                            ),
+                            _StatCard(
+                              icon: Icons.school,
+                              value: '3.8',
+                              label: 'GPA',
+                              color: Colors.purple,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 8,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              _MenuItem(
+                                icon: Icons.edit,
+                                text: 'Edit Profile',
+                                onTap: () => _openPage(
+                                  EditProfilePage(
+                                    controller: widget.controller,
+                                  ),
+                                ),
+                              ),
+                              _MenuItem(
+                                icon: Icons.notifications_none_rounded,
+                                text: 'Notifications',
+                                onTap: () => _openPage(
+                                  NotificationsPage(
+                                    controller: widget.controller,
+                                    repository: widget.notificationRepository,
+                                  ),
+                                ),
+                              ),
+                              _MenuItem(
+                                icon: Icons.settings,
+                                text: 'Settings',
+                                onTap: () => _openPage(
+                                  ProfileSettingsPage(
+                                    controller: widget.controller,
+                                  ),
+                                ),
+                              ),
+                              _MenuItem(
+                                icon: Icons.help_outline,
+                                text: 'Help & Support',
+                                onTap: () => _openPage(const HelpSupportPage()),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton.icon(
+                            onPressed: widget.controller.isLoggingOut
+                                ? null
+                                : _confirmLogout,
+                            icon: widget.controller.isLoggingOut
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.logout),
+                            label: Text(
+                              widget.controller.isLoggingOut
+                                  ? 'Logging out...'
+                                  : 'Logout',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
                           ),
                         ),
-                        _MenuItem(
-                          icon: Icons.settings,
-                          text: 'Settings',
-                          onTap: () => _openPage(
-                            ProfileSettingsPage(controller: widget.controller),
-                          ),
-                        ),
-                        _MenuItem(
-                          icon: Icons.help_outline,
-                          text: 'Help & Support',
-                          onTap: () => _openPage(const HelpSupportPage()),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
                 ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: widget.controller.isLoggingOut
-                          ? null
-                          : _confirmLogout,
-                      icon: widget.controller.isLoggingOut
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.logout),
-                      label: Text(
-                        widget.controller.isLoggingOut
-                            ? 'Logging out...'
-                            : 'Logout',
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
+              ),
             ),
           ),
         );

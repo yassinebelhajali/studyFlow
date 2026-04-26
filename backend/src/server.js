@@ -39,7 +39,8 @@ let agentController;
 
 app.use(
   cors({
-    origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((item) => item.trim()),
+    origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map((item) => item.trim()),
+    credentials: true,
   }),
 );
 app.use(express.json({ limit: '32kb' }));
@@ -283,7 +284,13 @@ app.post('/api/ai/chat/stream', async (request, response) => {
   response.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': corsOrigin === '*' ? '*' : request.get('origin') || '*',
+  });
+
+  logger.info('sse.chat.start', {
+    requestId: validation.value.requestId,
+    conversationId: validation.value.conversationId,
   });
 
   const sseElapsed = logger.startTimer();
@@ -332,7 +339,13 @@ app.post('/api/ai/agent/stream', async (request, response) => {
   response.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': corsOrigin === '*' ? '*' : request.get('origin') || '*',
+  });
+
+  logger.info('sse.agent.start', {
+    requestId: validation.value.requestId,
+    conversationId: validation.value.conversationId,
   });
 
   const sseElapsed = logger.startTimer();

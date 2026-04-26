@@ -13,7 +13,7 @@ class HttpAiBackendClient implements AiBackendClient {
   HttpAiBackendClient({
     required this.baseUrl,
     required http.Client client,
-    this.timeout = const Duration(seconds: 30),
+    this.timeout = const Duration(seconds: 60),
   }) : _client = client;
 
   final String baseUrl;
@@ -189,47 +189,57 @@ class HttpAiBackendClient implements AiBackendClient {
     var eventCount = 0;
     var deltaCount = 0;
 
-    await for (final chunk in response.stream.transform(utf8.decoder)) {
-      buffer += chunk;
-      while (buffer.contains('\n\n')) {
-        final eventEnd = buffer.indexOf('\n\n');
-        final rawEvent = buffer.substring(0, eventEnd).trim();
-        buffer = buffer.substring(eventEnd + 2);
-        final event = _parseStreamEvent(rawEvent);
-        if (event == null) {
-          continue;
-        }
+    try {
+      await for (final chunk in response.stream.transform(utf8.decoder)) {
+        buffer += chunk;
+        while (buffer.contains('\n\n')) {
+          final eventEnd = buffer.indexOf('\n\n');
+          final rawEvent = buffer.substring(0, eventEnd).trim();
+          buffer = buffer.substring(eventEnd + 2);
+          final event = _parseStreamEvent(rawEvent);
+          if (event == null) {
+            continue;
+          }
 
-        eventCount++;
-        if (event.type == AiBackendStreamEventType.delta) {
-          deltaCount++;
-        } else {
-          AppLogger.debug(
-            _tag,
-            'SSE event',
-            data: {
-              'type': event.type.name,
-              'isDone': event.isDone,
-              'actionCount': event.actions?.length,
-            },
-          );
-        }
+          eventCount++;
+          if (event.type == AiBackendStreamEventType.delta) {
+            deltaCount++;
+          } else {
+            AppLogger.debug(
+              _tag,
+              'SSE event',
+              data: {
+                'type': event.type.name,
+                'isDone': event.isDone,
+                'actionCount': event.actions?.length,
+              },
+            );
+          }
 
-        yield event;
-        if (event.isDone) {
-          sw.stop();
-          AppLogger.info(
-            _tag,
-            'SSE $path done',
-            data: {
-              'durationMs': sw.elapsedMilliseconds,
-              'eventCount': eventCount,
-              'deltaCount': deltaCount,
-            },
-          );
-          return;
+          yield event;
+          if (event.isDone) {
+            sw.stop();
+            AppLogger.info(
+              _tag,
+              'SSE $path done',
+              data: {
+                'durationMs': sw.elapsedMilliseconds,
+                'eventCount': eventCount,
+                'deltaCount': deltaCount,
+              },
+            );
+            return;
+          }
         }
       }
+    } catch (error, st) {
+      AppLogger.error(
+        _tag,
+        'SSE $path stream error',
+        error: error,
+        stackTrace: st,
+      );
+      throw AiBackendException('AI stream connection interrupted: $error');
     }
 
     final tail = _parseStreamEvent(buffer.trim());

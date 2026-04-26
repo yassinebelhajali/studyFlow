@@ -300,6 +300,11 @@ class LlmReasoningLayer {
 
     if (!llmResponse.ok) {
       const detail = await llmResponse.text().catch(() => '(unreadable body)');
+      logger.error('llm.call_gemini.error', {
+        status: llmResponse.status,
+        url,
+        detail,
+      });
       throw new Error(`LLM provider failed with ${llmResponse.status}: ${detail}`);
     }
 
@@ -312,7 +317,7 @@ class LlmReasoningLayer {
 
   _modelName(provider = this._provider()) {
     if (provider === 'gemini') {
-      return this._env.GEMINI_MODEL || this._env.LLM_MODEL || 'gemini-3-flash-preview';
+      return this._env.GEMINI_MODEL || this._env.LLM_MODEL || 'gemini-1.5-flash';
     }
     return this._env.LLM_MODEL;
   }

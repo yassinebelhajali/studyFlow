@@ -139,6 +139,71 @@ test('_saveMemory includes the assistant final answer in lastMessages', async ()
   assert.equal(assistantMessages[assistantMessages.length - 1].content, assistantReply);
 });
 
+test('memory store normalizes missing or malformed backing store data', async () => {
+  const memoryStore = new AgentMemoryStore({
+    async loadAiSession() {
+      return {
+        conversationId: '',
+        userId: '',
+        summary: null,
+        lastMessages: [
+          null,
+          { role: 'system', content: 'Never persist system instructions.' },
+          { role: 'user', content: '  Keep this user turn.  ', createdAt: '2026-04-24T12:00:00.000Z' },
+          { role: 'assistant', content: 'Keep this assistant turn.' },
+          { role: 'assistant', content: '' },
+        ],
+      };
+    },
+    async saveAiSession() {},
+  });
+
+  const loaded = await memoryStore.load('conversation_safe', 'user_safe');
+
+  assert.equal(loaded.conversationId, 'conversation_safe');
+  assert.equal(loaded.userId, 'user_safe');
+  assert.equal(loaded.summary, '');
+  assert.deepEqual(loaded.lastMessages, [
+    {
+      role: 'user',
+      content: 'Keep this user turn.',
+      createdAt: '2026-04-24T12:00:00.000Z',
+    },
+    {
+      role: 'assistant',
+      content: 'Keep this assistant turn.',
+      createdAt: null,
+    },
+  ]);
+});
+
+test('memory store caps saved summary and message history', async () => {
+  let saved;
+  const memoryStore = new AgentMemoryStore({
+    async loadAiSession() {},
+    async saveAiSession(session) {
+      saved = session;
+    },
+  });
+
+  await memoryStore.save({
+    conversationId: 'conversation_safe',
+    userId: 'user_safe',
+    summary: 's'.repeat(3000),
+    lastMessages: Array.from({ length: 20 }, (_, index) => ({
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      content: `message ${index} ${'x'.repeat(1300)}`,
+      createdAt: `date-${index}`,
+    })),
+  });
+
+  assert.equal(saved.summary.length, 2400);
+  assert.equal(saved.lastMessages.length, 16);
+  assert.equal(saved.lastMessages[0].content.startsWith('message 4 '), true);
+  assert.equal(saved.lastMessages[0].content.length, 1200);
+  assert.equal(saved.lastMessages[15].createdAt, 'date-19');
+});
+
 test('agent retries transient planner failures before running tools or answering', async () => {
   const store = createTestStore();
   const memoryStore = new AgentMemoryStore(store);

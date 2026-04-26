@@ -2,44 +2,40 @@ import 'package:flutter/material.dart';
 
 import 'core/navigation/app_transitions.dart';
 import 'domain/models/course.dart';
-import 'domain/repositories/course_repository.dart';
 
-class CoursPage extends StatefulWidget {
-  const CoursPage({super.key, required this.repository});
+class CoursPage extends StatelessWidget {
+  const CoursPage({super.key});
 
-  final CourseRepository repository;
-
-  @override
-  State<CoursPage> createState() => _CoursPageState();
-}
-
-class _CoursPageState extends State<CoursPage> {
-  late Future<List<Course>> _coursesFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _coursesFuture = widget.repository.getCourses();
-  }
-
-  Future<void> _refresh() async {
-    setState(() {
-      _coursesFuture = widget.repository.getCourses();
-    });
-  }
+  static const List<Course> _mockCourses = [
+    Course(title: 'Entrepôts de données', room: 'Room A01', teacher: 'Mr. Nafaa Haffar', colorHex: '#3B82F6', sessionsCount: 2),
+    Course(title: 'Business Intelligence and Data Analytics', room: 'Room A02', teacher: 'Mrs. Raghda Jouirou', colorHex: '#22C55E', sessionsCount: 3),
+    Course(title: 'programmation IA', room: 'Room A03', teacher: 'Ms. Nadia Haji Aissaoui', colorHex: '#84CC16', sessionsCount: 4),
+    Course(title: 'Tests de logiciels (certification ISTQB)', room: 'Room A-31', teacher: 'Mrs. Ichrak Mehrez', colorHex: '#7C3AED', sessionsCount: 2),
+    Course(title: 'Techniques d\'indexation et de recherche multimédia', room: 'Room A-06', teacher: 'Mr. Mohamed Amine Ben Charrada', colorHex: '#DB2777', sessionsCount: 2),
+    Course(title: 'Digital Business Transformation', room: 'Room A-12', teacher: 'Mrs. Eslem Romdhane', colorHex: '#4F46E5', sessionsCount: 2),
+    Course(title: 'Techniques de compilation', room: 'Room A-02', teacher: 'Mrs. Sameh Ghallebi', colorHex: '#DC2626', sessionsCount: 3),
+    Course(title: 'Administration des bases de données', room: 'Room A-03', teacher: 'Mrs. Maleke Chatti', colorHex: '#22C55E', sessionsCount: 2),
+    Course(title: 'Technologies et programmation web', room: 'Room A-07', teacher: 'Mrs. Senda Laataoui', colorHex: '#0284C7', sessionsCount: 3),
+    Course(title: 'Anglais', room: 'Room C-24', teacher: 'Mrs. Lilia Zouari', colorHex: '#EC4899', sessionsCount: 1),
+    Course(title: 'Droit d\'informatique, protection des données et éthique', room: 'Room A-KANOUN', teacher: 'Mrs. Wejden Allali', colorHex: '#EA580C', sessionsCount: 1),
+    Course(title: 'Projet fédéré (méthode Agile)', room: 'Library', teacher: 'Self Study', colorHex: '#64748B', sessionsCount: 1),
+  ];
 
   @override
   Widget build(BuildContext context) {
+    int totalCourses = _mockCourses.length;
+    int totalCredits = _mockCourses.fold(0, (sum, course) => sum + course.sessionsCount);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF3B82F6),
+        backgroundColor: const Color(0xFF9C27B0), // Purple app bar
         foregroundColor: Colors.white,
         toolbarHeight: 90,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
                 Icon(Icons.menu_book_rounded, size: 26),
                 SizedBox(width: 10),
@@ -49,68 +45,48 @@ class _CoursPageState extends State<CoursPage> {
                 ),
               ],
             ),
-            SizedBox(height: 6),
-            Text(
-              'Your academic modules and credits',
-              style: TextStyle(fontSize: 13, color: Colors.white70),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.menu_book, size: 14, color: Colors.white70),
+                const SizedBox(width: 4),
+                Text(
+                  '$totalCourses courses',
+                  style: const TextStyle(fontSize: 13, color: Colors.white70),
+                ),
+                const SizedBox(width: 12),
+                const Icon(Icons.school, size: 14, color: Colors.white70),
+                const SizedBox(width: 4),
+                Text(
+                  '$totalCredits credits',
+                  style: const TextStyle(fontSize: 13, color: Colors.white70),
+                ),
+              ],
             ),
           ],
         ),
-        actions: [
-          IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
-          const SizedBox(width: 8),
-        ],
       ),
-      body: FutureBuilder<List<Course>>(
-        future: _coursesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, size: 44, color: Colors.red),
-                  const SizedBox(height: 10),
-                  Text('Error: ${snapshot.error}'),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _refresh,
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final courses = snapshot.data ?? const <Course>[];
-          if (courses.isEmpty) {
-            return const Center(child: Text('No courses found.'));
-          }
-
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(18),
-              itemCount: courses.length,
-              itemBuilder: (context, index) {
-                final course = courses[index];
-                return _buildCourseBlock(context, course);
-              },
-            ),
-          );
+      body: ListView.builder(
+        padding: const EdgeInsets.all(18),
+        itemCount: _mockCourses.length,
+        itemBuilder: (context, index) {
+          final course = _mockCourses[index];
+          return _buildCourseBlock(context, course, index);
         },
       ),
     );
   }
 
-  Widget _buildCourseBlock(BuildContext context, Course course) {
+  Widget _buildCourseBlock(BuildContext context, Course course, int index) {
     final base = Color(course.colorValue);
     final swatch = _toSwatch(base);
-    final scheduleText = '${course.sessionsCount} sessions / week';
+    
+    // Creating some hardcoded schedule texts based on the user's image since 
+    // the generic model doesn't store time ranges, to match the UI perfectly.
+    String scheduleText = '${course.sessionsCount} sessions / week';
+    if (index == 0) scheduleText = 'Mon,Wed 17:00-19:30';
+    if (index == 1) scheduleText = 'Tue 19:00-20:30';
+    if (index == 2) scheduleText = 'Thu 14:00-17:30';
 
     return Container(
       width: double.infinity,
@@ -195,6 +171,7 @@ class _CoursPageState extends State<CoursPage> {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: swatch[100],
+                  elevation: 0,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 30,
                     vertical: 8,

@@ -37,7 +37,7 @@ Future<void> main() async {
   );
   const configuredAiBackendBaseUrl = String.fromEnvironment(
     'STUDYFLOW_AI_BACKEND_URL',
-    defaultValue: '',
+    defaultValue: 'http://localhost:3000',
   );
   const forceMockAiBackend = bool.fromEnvironment(
     'STUDYFLOW_USE_MOCK_AI',
@@ -91,7 +91,9 @@ Future<void> main() async {
   final authSessionStore = LocalAuthDataSource(preferences);
   final localAuthRepository = LocalAuthRepository(authSessionStore);
   final resolvedScheduleApiBaseUrl = _resolveMobileLoopback(scheduleApiBaseUrl);
-  final resolvedAuthApiBaseUrl = _resolveMobileLoopback(authApiBaseUrl);
+  final resolvedAuthApiBaseUrl = _resolveMobileLoopback(
+    authApiBaseUrl.trim().isEmpty ? scheduleApiBaseUrl : authApiBaseUrl,
+  );
   final supabaseAuthRepo = supabaseConfigured
       ? SupabaseAuthRepository(Supabase.instance.client)
       : null;
@@ -127,9 +129,8 @@ Future<void> main() async {
           baseUrl: resolvedAuthApiBaseUrl,
           authSessionStore: authSessionStore,
         );
-  final courseRepository = ApiCourseRepository(
-    baseUrl: resolvedAuthApiBaseUrl,
-    client: http.Client(),
+  final courseRepository = ApiCourseRepository.withLocalFallback(
+    baseUrl: resolvedScheduleApiBaseUrl,
   );
   final notificationRepository = LocalNotificationRepository(preferences);
   final profileRepository = LocalProfileRepository(preferences);

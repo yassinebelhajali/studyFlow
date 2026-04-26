@@ -188,7 +188,7 @@ class _MainShellState extends State<MainShell> {
         notificationScheduler: widget.notificationScheduler,
       ),
       TasksPage(repository: widget.taskRepository),
-      CoursPage(repository: widget.courseRepository),
+      CoursPage(),
       ProfilePage(
         controller: _profileController,
         notificationRepository: widget.notificationRepository,

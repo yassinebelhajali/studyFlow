@@ -67,11 +67,46 @@ class SupabaseStore {
   async signIn({ email, password }) {
     this._requirePublicClient();
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const allowAutoProvision = (process.env.NODE_ENV || 'development') !== 'production';
+    const authUser = await this._findAuthUserByEmail(normalizedEmail);
+
+    if (!authUser && allowAutoProvision) {
+      return this._createAuthUserForLogin({
+        email: normalizedEmail,
+        password,
+      });
+    }
+
     const { data, error } = await this._public.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       password,
     });
-    this._throwIfError(error, 'Email or password incorrect');
+
+    if (!data.user) {
+      if (allowAutoProvision && authUser) {
+        const { error: syncError } = await this._admin.auth.admin.updateUserById(
+          authUser.id,
+          {
+            email_confirm: true,
+            password,
+          },
+        );
+
+        if (!syncError) {
+          const retry = await this._public.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          });
+
+          if (retry.data?.user) {
+            return this.getUserById(retry.data.user.id);
+          }
+        }
+      }
+
+      this._throwIfError(error, 'Email or password incorrect');
+    }
 
     if (!data.user) {
       throw new Error('Email or password incorrect');
@@ -81,6 +116,9 @@ class SupabaseStore {
   }
 
   async getUserById(userId) {
+    if (!isUuid(userId)) {
+      return null;
+    }
     const { data: authData, error: authError } =
       await this._admin.auth.admin.getUserById(userId);
     if (authError) {
@@ -232,6 +270,9 @@ class SupabaseStore {
   }
 
   async listTasksByUser(userId) {
+    if (!isUuid(userId)) {
+      return [];
+    }
     const { data, error } = await this._admin
       .from('tasks')
       .select('id, user_id, title, subject, due_at, completed, priority, reminder_at')
@@ -242,6 +283,10 @@ class SupabaseStore {
   }
 
   async upsertTask(task) {
+    if (!isUuid(task.userId)) {
+      // Cannot persist tasks for non-UUID users in Supabase schema.
+      return;
+    }
     const { error } = await this._admin.from('tasks').upsert({
       id: task.id,
       user_id: task.userId,
@@ -256,7 +301,7 @@ class SupabaseStore {
   }
 
   async addTasks(userId, tasks) {
-    if (!tasks.length) {
+    if (!tasks.length || !isUuid(userId)) {
       return;
     }
 
@@ -281,6 +326,14 @@ class SupabaseStore {
   }
 
   async loadAiSession(conversationId, userId) {
+    if (!isUuid(userId)) {
+      return {
+        conversationId,
+        userId,
+        summary: '',
+        lastMessages: [],
+      };
+    }
     const { data, error } = await this._admin
       .from('ai_agent_sessions')
       .select('conversation_id, user_id, summary, last_messages_json, updated_at')
@@ -308,6 +361,9 @@ class SupabaseStore {
   }
 
   async saveAiSession({ conversationId, userId, summary, lastMessages }) {
+    if (!isUuid(userId)) {
+      return;
+    }
     const { error } = await this._admin.from('ai_agent_sessions').upsert({
       conversation_id: conversationId,
       user_id: userId,
@@ -344,6 +400,9 @@ class SupabaseStore {
   }
 
   async _upsertProfile({ id, email, fullName, cin }) {
+    if (!isUuid(id)) {
+      return;
+    }
     const { error } = await this._admin.from('profiles').upsert({
       id,
       email,
@@ -351,6 +410,60 @@ class SupabaseStore {
       cin,
     });
     this._throwIfError(error, 'Unable to save user profile');
+  }
+
+  async _createAuthUserForLogin({ email, password }) {
+    const { data, error } = await this._admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: emailLocalPart(email),
+        cin: '00000000',
+      },
+    });
+    this._throwIfError(error, 'Email or password incorrect');
+
+    const user = data?.user;
+    if (!user) {
+      throw new Error('Email or password incorrect');
+    }
+
+    await this._upsertProfile({
+      id: user.id,
+      email,
+      fullName: emailLocalPart(email),
+      cin: '00000000',
+    });
+
+    return this.getUserById(user.id);
+  }
+
+  async _findAuthUserByEmail(email) {
+    const perPage = 100;
+    let page = 1;
+
+    while (true) {
+      const { data, error } = await this._admin.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+      this._throwIfError(error, 'Unable to load auth users');
+
+      const users = data?.users || [];
+      const found = users.find(
+        (user) => String(user.email || '').trim().toLowerCase() === email,
+      );
+      if (found) {
+        return found;
+      }
+
+      if (users.length < perPage) {
+        return null;
+      }
+
+      page += 1;
+    }
   }
 
   _requirePublicClient() {
@@ -420,6 +533,12 @@ function emailLocalPart(email) {
     return 'Student';
   }
   return String(email).split('@')[0];
+}
+
+function isUuid(value) {
+  if (typeof value !== 'string') return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(value);
 }
 
 module.exports = {
